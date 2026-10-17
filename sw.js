@@ -1,7 +1,7 @@
 // Офлайн-режим: приложение и база открываются без интернета после первого захода.
 // При каждом обновлении сайта меняйте VERSION, чтобы телефоны подтянули новые файлы.
-const VERSION = 'kbzhu-v1';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.json', 'data/foods.json', 'icons/icon-192.png'];
+const VERSION = 'kbzhu-v2';
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.json', 'data/foods.json', 'data/brands.json', 'vendor/zxing.min.js', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

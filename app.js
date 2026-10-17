@@ -38,6 +38,7 @@ const state = {
   recent: store.get('recent', []),
   settings: store.get('settings', { trainer: CFG.trainerTelegram || '' }),
   foods: [],
+  brands: [],
   groups: [],
   dbReady: false,
   dbError: false
@@ -186,7 +187,7 @@ function tokenScore(q, list, fuzzy) {
   return best;
 }
 
-function allFoods() { return state.custom.concat(state.foods); }
+function allFoods() { return state.custom.concat(state.foods, state.brands); }
 
 // Оценка одной фразы (название или синоним) против запроса. 0 — не подходит.
 const LINKS = new Set(['с', 'со', 'по', 'в', 'на', 'из']);
@@ -215,6 +216,7 @@ function search(query, limit = 60) {
   const run = fuzzy => {
     const out = [];
     for (const f of allFoods()) {
+      if (f.hide) continue;
       let best = phraseScore(qt, qn, { t: f._nt, n: f._n }, fuzzy);
       for (const a of f._ap) {
         const s = phraseScore(qt, qn, a, fuzzy) * 0.92;
@@ -231,6 +233,8 @@ function search(query, limit = 60) {
       if (!wantsDry && f._nt.some(t => t === 'варен' || t === 'отварн')) best += 0.5;
       if (recentNames.has(f.n)) best += 1.5;
       if (f.src === 'custom') best += 1;
+      // Магазинные продукты ниже базовых, если запрос общий; популярные — выше остальных магазинных
+      if (f.src === 'brand') best += -1.2 + Math.min(1, Math.log10(1 + (f.scans || 0)) * 0.35);
       best -= f._n.length / 100;
       out.push([best, f]);
     }
@@ -259,13 +263,29 @@ async function loadDb() {
   state.custom.forEach(indexFood);
   const v = sheet.top();
   if (v && v.onDb) v.onDb();
+  loadBrands();
+}
+
+// Магазинные продукты со штрихкодами (Open Food Facts) — отдельным файлом, грузится вторым
+async function loadBrands() {
+  try {
+    const r = await fetch('data/brands.json', { cache: 'no-cache' });
+    if (!r.ok) return;
+    const db = await r.json();
+    state.brands = db.items.map(row => indexFood({
+      n: row[0], g: 'Магазинный продукт', k: row[1], p: row[2], f: row[3], c: row[4], fb: row[5],
+      code: row[6], u: row[7] || [], scans: row[8] || 0, hide: row[9] === 1, a: [], src: 'brand'
+    }));
+    const v = sheet.top();
+    if (v && v.onDb) v.onDb();
+  } catch (e) { /* без магазинной базы приложение работает на основной */ }
 }
 
 /* ---------- Сохранение ---------- */
 function saveDiary() { store.set('diary', state.diary); }
 function saveCustom() { store.set('custom', state.custom.map(({ _n, _nt, _at, _ap, ...rest }) => rest)); }
 function rememberRecent(food, unit, qty) {
-  const snap = { n: food.n, g: food.g, k: food.k, p: food.p, f: food.f, c: food.c, fb: food.fb, u: food.u || [], a: food.a || [], src: food.src, id: food.id };
+  const snap = { n: food.n, g: food.g, k: food.k, p: food.p, f: food.f, c: food.c, fb: food.fb, u: food.u || [], a: food.a || [], src: food.src, id: food.id, code: food.code };
   state.recent = [{ food: snap, unit, qty }].concat(state.recent.filter(r => r.food.n !== food.n)).slice(0, 40);
   store.set('recent', state.recent);
 }
@@ -368,13 +388,19 @@ const sheet = {
     this.render(true);
   },
   push(view) { this.stack.push(view); history.pushState({ sheet: this.stack.length }, ''); this.render(true); },
-  back() { history.back(); },
+  back(n = 1) { this.pendingPops = n; history.go(-n); },
+  backTo(view) {
+    const n = this.stack.length - 1 - this.stack.indexOf(view);
+    if (this.stack.indexOf(view) >= 0 && n > 0) this.back(n);
+  },
   close() { if (this.isOpen()) { closingAll = true; history.go(-this.stack.length); } },
   _pop() {
     this.stack.pop();
     if (!this.stack.length) this._hide(); else this.render(true);
   },
   _hide() {
+    if (this.current && this.current.destroy) this.current.destroy();
+    this.current = null;
     this.stack = [];
     $('#backdrop').hidden = true; $('#sheet').hidden = true;
     document.body.style.overflow = '';
@@ -383,6 +409,8 @@ const sheet = {
   top() { return this.stack[this.stack.length - 1]; },
   render(focus) {
     const v = this.top(); if (!v) return;
+    if (this.current && this.current !== v && this.current.destroy) this.current.destroy();
+    this.current = v;
     $('#sheetTitle').textContent = v.title;
     $('#sheetBack').hidden = this.stack.length < 2;
     const body = $('#sheetBody');
@@ -394,6 +422,9 @@ let closingAll = false;
 window.addEventListener('popstate', () => {
   if (!sheet.isOpen()) return;
   if (closingAll) { closingAll = false; sheet._hide(); return; }
+  const n = sheet.pendingPops || 1;
+  sheet.pendingPops = 0;
+  if (n > 1) sheet.stack.splice(-(n - 1), n - 1);
   sheet._pop();
 });
 
@@ -405,7 +436,12 @@ function addView(meal, opts = {}) {
     query: '', tab: 'recent', group: null,
     render(body) {
       body.innerHTML = `<div class="search-wrap">
-          <input class="search" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Продукт или блюдо" value="${esc(v.query)}" aria-label="Поиск продукта или блюда">
+          <div class="search-row">
+            <input class="search" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Продукт или блюдо" value="${esc(v.query)}" aria-label="Поиск продукта или блюда">
+            <button class="scan-btn" data-scan aria-label="Сканировать штрихкод">
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
           <div class="tabs" role="tablist" ${v.query ? 'hidden' : ''}>
             <button class="tab" role="tab" data-tab="recent" aria-selected="${v.tab === 'recent'}">Недавние</button>
             <button class="tab" role="tab" data-tab="mine" aria-selected="${v.tab === 'mine'}">Мои продукты</button>
@@ -423,6 +459,7 @@ function addView(meal, opts = {}) {
         draw();
       });
       input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+      $('[data-scan]', body).addEventListener('click', () => sheet.push(scanView(meal, opts)));
       $$('.tab', body).forEach(b => b.addEventListener('click', () => {
         v.tab = b.dataset.tab; v.group = null;
         $$('.tab', body).forEach(x => x.setAttribute('aria-selected', x === b));
@@ -436,7 +473,7 @@ function addView(meal, opts = {}) {
 
 function foodRow(f, sub) {
   return `<li class="item" tabindex="0" role="button">
-    <div class="item-main"><div class="item-name">${esc(f.n)}${f.src === 'custom' ? '<span class="tag">' + (f.recipe ? 'моё блюдо' : 'мой') + '</span>' : ''}</div>
+    <div class="item-main"><div class="item-name">${esc(f.n)}${f.src === 'custom' ? '<span class="tag">' + (f.recipe ? 'моё блюдо' : f.code ? 'штрихкод' : 'мой') + '</span>' : ''}</div>
     <div class="item-sub">${esc(sub != null ? sub : f.g)}</div></div>
     <div class="item-kcal">${fmt(f.k)}<small>ккал / 100 г</small></div>
   </li>`;
@@ -628,6 +665,190 @@ function amountView(food, opts = {}) {
   return v;
 }
 
+/* ---------- Штрихкод ---------- */
+let zxingPromise = null;
+function loadZxing() {
+  if (window.ZXing) return Promise.resolve(window.ZXing);
+  if (!zxingPromise) zxingPromise = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'vendor/zxing.min.js';
+    s.onload = () => res(window.ZXing);
+    s.onerror = () => { zxingPromise = null; rej(new Error('zxing')); };
+    document.head.appendChild(s);
+  });
+  return zxingPromise;
+}
+
+function offToFood(p, code) {
+  const n = p.nutriments || {};
+  const g = k => { const v = parseFloat(n[k]); return isFinite(v) ? v : NaN; };
+  let k = g('energy-kcal_100g');
+  if (!isFinite(k) && isFinite(g('energy_100g'))) k = g('energy_100g') / 4.184;
+  const pr = g('proteins_100g'), f = g('fat_100g'), c = g('carbohydrates_100g');
+  let fb = g('fiber_100g'); if (!isFinite(fb)) fb = 0;
+  if (![k, pr, f, c].every(isFinite)) return null;
+  const name = String(p.product_name_ru || p.product_name || '').trim();
+  if (!name) return null;
+  const brand = String(p.brands || '').split(',')[0].trim();
+  const full = brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${name} (${brand})` : name;
+  const u = [];
+  const sq = parseFloat(p.serving_quantity);
+  if (sq > 0 && sq < 2000) u.push(['порция', Math.round(sq * 10) / 10]);
+  const pq = parseFloat(p.product_quantity);
+  if (pq > 0 && pq < 5000 && (!u.length || Math.abs(pq - u[0][1]) > 1)) u.push(['упаковка', Math.round(pq)]);
+  const r1 = x => Math.round(x * 10) / 10;
+  return { n: full, g: 'Продукты со штрихкодом', k: Math.round(k), p: r1(pr), f: r1(f), c: r1(c), fb: r1(fb), a: [], u, code };
+}
+
+// 12-значный UPC и 13-значный EAN с ведущим нулём — один и тот же товар
+const normCode = c => String(c || '').replace(/\D/g, '').replace(/^0+/, '');
+async function lookupBarcode(code) {
+  const key = normCode(code);
+  if (code.length === 12) code = '0' + code;
+  const local = allFoods().find(f => f.code && normCode(f.code) === key);
+  if (local) return { food: local };
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 9000);
+  try {
+    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_ru,brands,serving_quantity,product_quantity,nutriments`, { signal: ctrl.signal });
+    const d = await r.json();
+    if (d && d.status === 1 && d.product) {
+      const food = offToFood(d.product, code);
+      if (food) {
+        // Сохраняем в «Мои продукты», чтобы в следующий раз находилось без интернета
+        const saved = indexFood(Object.assign({ id: 'c' + uid(), src: 'custom' }, food));
+        state.custom.unshift(saved);
+        saveCustom();
+        return { food: saved, fresh: true };
+      }
+      return { partial: d.product };
+    }
+    return {};
+  } catch (e) {
+    return { offline: true };
+  } finally { clearTimeout(timer); }
+}
+
+function scanView(meal, opts = {}) {
+  let stream = null, timer = null, stopped = false, busy = false;
+  const v = {
+    title: 'Штрихкод',
+    destroy() {
+      stopped = true;
+      clearTimeout(timer);
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    },
+    render(body) {
+      body.innerHTML = `<div class="scan-box">
+          <video class="scan-video" playsinline muted autoplay></video>
+          <div class="scan-frame" aria-hidden="true"></div>
+        </div>
+        <p class="scan-status" aria-live="polite">Включаю камеру…</p>
+        <span class="field-label">Или введите цифры под штрихкодом</span>
+        <div class="search-row">
+          <input class="input" id="sCode" inputmode="numeric" autocomplete="off" placeholder="4600000000000">
+          <button class="btn btn-secondary" data-find>Найти</button>
+        </div>
+        <p class="hint">Магазинные продукты и штрихкоды — из открытой базы Open Food Facts (лицензия ODbL). Если продукта нет, внесите его с упаковки: дальше он найдётся сразу.</p>`;
+      const video = $('.scan-video', body);
+      const status = $('.scan-status', body);
+      const setStatus = t => { status.textContent = t; };
+
+      const found = async code => {
+        if (busy) return;
+        busy = true;
+        if (navigator.vibrate) navigator.vibrate(60);
+        v.destroy();
+        setStatus(`Ищу ${code}…`);
+        const res = await lookupBarcode(code);
+        if (sheet.top() !== v) return;
+        if (res.food) {
+          if (opts.pick) { opts.pick(res.food); return; }
+          sheet.stack.pop();
+          history.replaceState({ sheet: sheet.stack.length + 1 }, '');
+          sheet.stack.push(amountView(res.food, { meal }));
+          sheet.render(true);
+          if (res.fresh) toast('Нашёл в Open Food Facts, сохранил в «Мои продукты»');
+          return;
+        }
+        if (res.offline) { busy = false; setStatus('Нет связи с базой штрихкодов. Проверьте интернет или введите продукт вручную.'); return; }
+        const name = res.partial ? String(res.partial.product_name_ru || res.partial.product_name || '') : '';
+        sheet.stack.pop();
+        history.replaceState({ sheet: sheet.stack.length + 1 }, '');
+        sheet.stack.push(customView(null, { meal, code, name }));
+        sheet.render(true);
+      };
+
+      const findBtn = $('[data-find]', body);
+      const codeInput = $('#sCode', body);
+      const manual = () => {
+        const code = codeInput.value.replace(/\D/g, '');
+        if (code.length < 8) { setStatus('В штрихкоде 8 или 13 цифр'); codeInput.focus(); return; }
+        busy = false; found(code);
+      };
+      findBtn.addEventListener('click', manual);
+      codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') manual(); });
+
+      const start = async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setStatus('Камера в этом браузере недоступна. Введите цифры под штрихкодом.'); return;
+        }
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        } catch (e) {
+          setStatus('Нет доступа к камере. Разрешите камеру для этого сайта в настройках браузера или введите цифры вручную.'); return;
+        }
+        if (stopped) { stream.getTracks().forEach(t => t.stop()); return; }
+        video.srcObject = stream;
+        try { await video.play(); } catch (e) { /* автозапуск без звука разрешён */ }
+        setStatus('Наведите камеру на штрихкод');
+
+        let detect;
+        if ('BarcodeDetector' in window) {
+          try {
+            const bd = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+            detect = async () => { const r = await bd.detect(video); return r[0] && r[0].rawValue; };
+          } catch (e) { detect = null; }
+        }
+        if (!detect) {
+          let Z;
+          try { Z = await loadZxing(); } catch (e) { setStatus('Не загрузился сканер. Введите цифры вручную.'); return; }
+          const hints = new Map();
+          hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]);
+          hints.set(Z.DecodeHintType.TRY_HARDER, true);
+          const reader = new Z.MultiFormatReader();
+          reader.setHints(hints);
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          detect = async () => {
+            const w = video.videoWidth, h = video.videoHeight;
+            if (!w || !h) return null;
+            // центральная полоса кадра — там рамка
+            const cw = Math.round(w * 0.9), ch = Math.round(h * 0.5);
+            canvas.width = cw; canvas.height = ch;
+            ctx.drawImage(video, (w - cw) / 2, (h - ch) / 2, cw, ch, 0, 0, cw, ch);
+            try {
+              const src = new Z.HTMLCanvasElementLuminanceSource(canvas);
+              return reader.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(src))).getText();
+            } catch (e) { return null; }
+          };
+        }
+        const loop = async () => {
+          if (stopped || busy) return;
+          let code = null;
+          try { code = await detect(); } catch (e) { code = null; }
+          if (code && /^\d{8,14}$/.test(code)) { found(code); return; }
+          timer = setTimeout(loop, 180);
+        };
+        loop();
+      };
+      start();
+    }
+  };
+  return v;
+}
+
 /* ---------- Свой продукт ---------- */
 function customView(existing, opts = {}) {
   const d = existing ? Object.assign({}, existing) : { n: opts.name || '', k: '', p: '', f: '', c: '', fb: '', u: [] };
@@ -636,7 +857,9 @@ function customView(existing, opts = {}) {
     title: existing ? 'Мой продукт' : 'Новый продукт',
     focus: existing ? null : '#cName',
     render(body) {
-      body.innerHTML = `<p class="hint" style="margin-top:4px">Перепишите цифры с упаковки — они указаны на 100 г.</p>
+      body.innerHTML = `<p class="hint" style="margin-top:4px">${opts.code && !existing
+          ? `Штрихкода ${esc(opts.code)} нет в базе. Перепишите цифры с упаковки, они указаны на 100 г. В следующий раз продукт найдётся по штрихкоду сразу.`
+          : 'Перепишите цифры с упаковки — они указаны на 100 г.'}</p>
         <div class="form">
           <label class="field-label" for="cName">Название</label>
           <input class="input" id="cName" value="${esc(d.n)}" placeholder="Например, Творог «Савушкин» 5%" autocomplete="off">
@@ -673,7 +896,8 @@ function customView(existing, opts = {}) {
         const ul = $('#cUl', body).value.trim(), ug = val('#cUg');
         const food = indexFood({
           id: existing ? existing.id : 'c' + uid(), src: 'custom', n: name, g: 'Мои продукты',
-          k, p, f, c, fb, a: [], u: ul && ug > 0 ? [[ul, ug]] : []
+          k, p, f, c, fb, a: [], u: ul && ug > 0 ? [[ul, ug]] : [],
+          code: existing ? existing.code : (opts.code || undefined)
         });
         if (existing) state.custom = state.custom.map(x => x.id === existing.id ? food : x);
         else state.custom.unshift(food);
@@ -748,7 +972,7 @@ function recipeView(existing, opts = {}) {
           pick: f => {
             const u = (f.u && f.u[0]) ? f.u[0][1] : 100;
             r.items.push({ n: f.n, grams: u, per: { k: f.k, p: f.p, f: f.f, c: f.c, fb: f.fb } });
-            sheet.back();
+            sheet.backTo(v);
           }
         }));
       });
