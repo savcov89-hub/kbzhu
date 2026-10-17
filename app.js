@@ -1246,6 +1246,7 @@ function reportView() {
             <button class="btn btn-secondary btn-small" data-copy>Скопировать</button>
           </div>
         </div>
+        <p class="hint tg-fallback" hidden>Telegram не открылся? Нажмите «Другим способом» и выберите Telegram или WhatsApp. Отчёт также скопирован — его можно вставить в чат вручную.</p>
         ${trainer ? '' : '<p class="hint">Впишите Telegram тренера в профиле — кнопка будет сразу открывать его чат.</p>'}`;
       $$('[data-m]', body).forEach(b => b.addEventListener('click', () => { mode = b.dataset.m; v.render(body); }));
       const prof = $('[data-prof]', body);
@@ -1258,14 +1259,16 @@ function reportView() {
           toast(await copyText(text) ? 'Отчёт скопирован — вставьте в чат' : 'Не удалось скопировать');
         }
       });
-      $('[data-tg]', body).addEventListener('click', async () => {
-        if (trainer) {
-          await copyText(text);
-          toast('Отчёт скопирован — вставьте его в чат');
-          setTimeout(() => { location.href = `https://t.me/${encodeURIComponent(trainer)}`; }, 700);
-        } else {
-          location.href = `https://t.me/share/url?url=${encodeURIComponent(text)}`;
-        }
+      $('[data-tg]', body).addEventListener('click', () => {
+        // Сразу приложение Telegram, отчёт уже вписан в поле сообщения: остаётся нажать «Отправить».
+        // Ссылка вида t.me/ник открывала веб-страницу, где «Send Message» терял текст.
+        const enc = encodeURIComponent(text.slice(0, 4000));
+        copyText(text); // запасной вариант: если Telegram не вставит текст, он уже в буфере
+        location.href = trainer
+          ? `tg://resolve?domain=${encodeURIComponent(trainer)}&text=${enc}`
+          : `tg://msg_url?url=${enc}`;
+        const fb = $('.tg-fallback', body);
+        if (fb) fb.hidden = false;
       });
     }
   };
