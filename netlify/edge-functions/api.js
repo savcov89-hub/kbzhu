@@ -2,7 +2,7 @@
 // хранит ключ Claude API, пускает по личным ссылкам,
 // считает еду по фото и хранит историю каждого человека.
 import { getStore } from "@netlify/blobs";
-import { SYSTEM } from "./system-prompt.js";
+import { SYSTEM } from "../shared/system-prompt.js";
 
 const MODEL = "claude-sonnet-5-5";
 const DAILY_LIMIT = 40;      // расчётов на человека в день
