@@ -112,21 +112,39 @@ async function handle(req) {
   return json({ error: "Неизвестный запрос" }, 404);
 }
 
+// Поиск в интернете — только когда продукт неясен (см. правило в system prompt), не больше 2 запросов.
+const TOOLS = [{ type: "web_search_20260209", name: "web_search", max_uses: 2, user_location: { type: "approximate", country: "RU" } }];
+
 async function askClaude(store, content) {
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": await store.get("apiKey"),
-      "anthropic-version": "2026-10-21",
-      "anthropic-beta": "server-side-fallback-2026-07-01"
-    },
-    body: JSON.stringify({ model: MODEL, max_tokens: 4000, fallbacks: "default", output_config: { effort: "low" }, system: SYSTEM, messages: [{ role: "user", content }] })
-  });
-  const data = await r.json();
-  if (!r.ok) return { error: (data.error && data.error.message) || "Ошибка Claude API" };
+  const key = await store.get("apiKey");
+  const messages = [{ role: "user", content }];
+  let data;
+  for (let i = 0; i < 3; i++) {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2026-10-21",
+        "anthropic-beta": "server-side-fallback-2026-07-01"
+      },
+      body: JSON.stringify({
+        model: MODEL, max_tokens: 4000, fallbacks: "default", output_config: { effort: "low" },
+        system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+        tools: TOOLS, messages
+      })
+    });
+    data = await r.json();
+    if (!r.ok) return { error: (data.error && data.error.message) || "Ошибка Claude API" };
+    if (data.stop_reason !== "pause_turn") break;
+    messages.push({ role: "assistant", content: data.content });
+  }
   if (data.stop_reason === "refusal") return { error: "Модель отказалась отвечать на эти фото" };
-  const raw = data.content.filter(b => b.type === "text").map(b => b.text).join("\n").trim();
+  // Берём текст после последнего поиска: до него модель могла написать «ищу…».
+  const blocks = data.content;
+  let from = 0;
+  blocks.forEach((b, i) => { if (b.type === "web_search_tool_result") from = i + 1; });
+  const raw = blocks.slice(from).filter(b => b.type === "text").map(b => b.text).join("").trim();
   const m = raw.match(/#ИТОГ\s+ккал=(\d+)\s+б=(\d+)\s+ж=(\d+)\s+у=(\d+)/);
   return {
     text: raw.replace(/\n?#ИТОГ[^\n]*/g, "").trim(),
