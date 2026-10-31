@@ -16,7 +16,7 @@ const newToken = () => [...crypto.getRandomValues(new Uint8Array(18))].map(b => 
 async function handle(req) {
   const url = new URL(req.url);
   const route = url.pathname.replace(/^\/api\//, "");
-  const store = getStore("foto");
+  const store = getStore({ name: "foto", consistency: "strong" });
   const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
   const token = body.token || url.searchParams.get("t") || "";
   const users = (await store.get("users", { type: "json" })) || {};
