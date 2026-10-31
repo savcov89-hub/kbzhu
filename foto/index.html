@@ -49,7 +49,12 @@ summary{color:var(--muted)}
   <div class="noterow"><textarea id="note" rows="1" placeholder="Подпись к фото или что съел без фото"></textarea><button class="mic" id="noteMic" aria-label="Сказать голосом">🎤</button></div>
   <label class="btn" id="pick">📷 Выбрать фото
   <input id="file" type="file" accept="image/*" multiple hidden></label>
-  <button class="small" id="textOnly" style="display:block;margin:6px auto 0">✍️ Записать без фото — по подписи</button>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
+    <button class="small" id="textOnly">✍️ Записать без фото</button>
+    <label class="muted">День: <select id="day" style="font-size:14px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px">
+      <option value="auto">по дате фото</option><option value="0">сегодня</option><option value="1">вчера</option><option value="2">позавчера</option>
+    </select></label>
+  </div>
   <div id="today" class="card" style="white-space:normal"></div>
   <div id="status" class="muted" style="margin-top:10px"></div>
   <div id="thumbs" class="thumbs"></div>
@@ -165,34 +170,77 @@ function resize(file){
   });
 }
 
+// Дата съёмки из EXIF (DateTimeOriginal), если её нет — дата файла.
+async function shotTime(file){
+  try {
+    const v = new DataView(await file.slice(0, 131072).arrayBuffer());
+    if (v.getUint16(0) !== 0xFFD8) throw 0;
+    let o = 2;
+    while (o + 4 < v.byteLength){
+      const m = v.getUint16(o), len = v.getUint16(o + 2);
+      if (m === 0xFFE1 && v.getUint32(o + 4) === 0x45786966){
+        const t = o + 10, le = v.getUint16(t) === 0x4949;
+        const u16 = x => v.getUint16(t + x, le), u32 = x => v.getUint32(t + x, le);
+        const str = x => { let r = ""; for (let i = 0; i < 19; i++) r += String.fromCharCode(v.getUint8(t + x + i)); return r; };
+        const tags = ifd => { const n = u16(ifd), out = {}; for (let i = 0; i < n; i++){ const e = ifd + 2 + i * 12; out[u16(e)] = u32(e + 8); } return out; };
+        const ifd0 = tags(u32(4));
+        let d = null;
+        if (ifd0[0x8769]) { const ex = tags(ifd0[0x8769]); if (ex[0x9003]) d = str(ex[0x9003]); }
+        if (!d && ifd0[0x0132]) d = str(ifd0[0x0132]);
+        const mm = d && d.match(/(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/);
+        if (mm) return new Date(+mm[1], mm[2] - 1, +mm[3], +mm[4], +mm[5], +mm[6]).getTime();
+        break;
+      }
+      if (m === 0xFFDA) break;
+      o += 2 + len;
+    }
+  } catch {}
+  return file.lastModified || Date.now();
+}
+
+// К какому дню записать: выбранный вручную или по времени съёмки.
+function chosenAt(shots){
+  const now = Date.now(), sel = $("day").value;
+  let at = shots.length ? Math.max(...shots) : now;
+  if (sel !== "auto"){
+    const d = new Date(at), t = new Date(); t.setDate(t.getDate() - +sel);
+    t.setHours(d.getHours(), d.getMinutes(), d.getSeconds(), 0); at = t.getTime();
+  }
+  return Math.min(at, now);
+}
+function addEntry(e){ hist = [e, ...hist.filter(x => x.at !== e.at)].sort((a, b) => b.at - a.at); renderHistory(); $("day").value = "auto"; }
+
 $("textOnly").onclick = async () => {
   const note = $("note").value.trim();
   if (!note){ $("note").focus(); $("status").textContent = "Напиши или скажи в поле сверху, что съел: «стакан молока 2,5%»"; return; }
   $("status").textContent = "Считаю… (5–15 сек)"; $("out").innerHTML = ""; $("thumbs").innerHTML = "";
   $("textOnly").disabled = true;
   try {
-    const r = await api("analyze", {images: [], note});
-    $("note").value = ""; hist.unshift(r.entry); renderHistory(); show(r.entry); $("status").textContent = "";
+    const r = await api("analyze", {images: [], note, at: chosenAt([])});
+    $("note").value = ""; addEntry(r.entry); show(r.entry); $("status").textContent = "";
   } catch (e){ $("status").textContent = "Ошибка: " + e.message; }
   finally { $("textOnly").disabled = false; }
 };
 
 async function analyze(files){
-  files = [...files].sort((a, b) => a.lastModified - b.lastModified).slice(0, 20);
+  files = [...files].slice(0, 20);
+  const shots = await Promise.all(files.map(shotTime));
+  const order = files.map((f, i) => i).sort((a, b) => shots[a] - shots[b]);
+  files = order.map(i => files[i]); const times = order.map(i => shots[i]);
   $("status").textContent = "Готовлю " + files.length + " фото…";
   $("out").innerHTML = ""; $("thumbs").innerHTML = "";
   const images = [];
-  for (const f of files){
+  for (const [i, f] of files.entries()){
     const url = await resize(f);
     const t = document.createElement("img"); t.src = url; $("thumbs").append(t);
-    images.push({data: url.split(",")[1], time: new Date(f.lastModified).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"})});
+    images.push({data: url.split(",")[1], time: new Date(times[i]).toLocaleString("ru-RU", {day: "numeric", month: "long", hour: "2-digit", minute: "2-digit"})});
   }
   $("status").textContent = "Считаю… (10–30 сек)";
   $("file").disabled = true;
   try {
-    const r = await api("analyze", {images, note: $("note").value.trim()});
+    const r = await api("analyze", {images, note: $("note").value.trim(), at: chosenAt(times)});
     $("note").value = "";
-    hist.unshift(r.entry); renderHistory();
+    addEntry(r.entry);
     show(r.entry);
     $("status").textContent = "";
   } catch (e){

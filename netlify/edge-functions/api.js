@@ -75,7 +75,7 @@ async function handle(req) {
     const note = String(body.note || "").trim().slice(0, 500);
     if (!images.length && !note) return json({ error: "Нет фото и нет текста" }, 400);
     const today = new Date().toDateString();
-    if (history.filter(h => new Date(h.at).toDateString() === today).length >= DAILY_LIMIT)
+    if (history.filter(h => new Date(h.created || h.at).toDateString() === today).length >= DAILY_LIMIT)
       return json({ error: "Лимит расчётов на сегодня исчерпан" }, 429);
 
     const content = [];
@@ -91,8 +91,14 @@ async function handle(req) {
     }
     const res = await askClaude(store, content);
     if (res.error) return json(res, 502);
-    const entry = { at: Date.now(), n: images.length, ...(note ? { note } : {}), ...res };
+    // День записи: время съёмки с телефона (до 14 дней назад), иначе сейчас.
+    const now = Date.now();
+    let at = Number(body.at);
+    if (!(at > now - 14 * 864e5 && at <= now + 3e5)) at = now;
+    while (history.some(h => h.at === at)) at++;
+    const entry = { at, created: now, n: images.length, ...(note ? { note } : {}), ...res };
     history.unshift(entry);
+    history.sort((a, b) => b.at - a.at);
     await store.setJSON(histKey, history.slice(0, 500));
     return json({ entry });
   }
