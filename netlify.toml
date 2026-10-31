@@ -1,0 +1,8 @@
+[build]
+  publish = "."
+  edge_functions = "netlify/edge-functions"
+
+[[redirects]]
+  from = "/"
+  to = "/foto/"
+  status = 302
