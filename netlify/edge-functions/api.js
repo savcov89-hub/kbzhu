@@ -72,7 +72,8 @@ async function handle(req) {
 
   if (route === "analyze") {
     const images = Array.isArray(body.images) ? body.images.slice(0, MAX_PHOTOS) : [];
-    if (!images.length) return json({ error: "Нет фото" }, 400);
+    const note = String(body.note || "").trim().slice(0, 500);
+    if (!images.length && !note) return json({ error: "Нет фото и нет текста" }, 400);
     const today = new Date().toDateString();
     if (history.filter(h => new Date(h.at).toDateString() === today).length >= DAILY_LIMIT)
       return json({ error: "Лимит расчётов на сегодня исчерпан" }, 429);
@@ -82,10 +83,12 @@ async function handle(req) {
       content.push({ type: "text", text: "Фото " + (i + 1) + (img.time ? ", " + img.time : "") });
       content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: String(img.data) } });
     });
-    content.push({ type: "text", text: "Посчитай еду на этих фото." });
-
-    const note = String(body.note || "").trim().slice(0, 500);
-    if (note) content.push({ type: "text", text: "Подпись: " + note });
+    if (images.length) {
+      content.push({ type: "text", text: "Посчитай еду на этих фото." });
+      if (note) content.push({ type: "text", text: "Подпись: " + note });
+    } else {
+      content.push({ type: "text", text: "Фото нет, еда описана словами. Посчитай по описанию: если вес или объём не назван — бери типичную порцию и назови допущение.\nОписание: " + note });
+    }
     const res = await askClaude(store, content);
     if (res.error) return json(res, 502);
     const entry = { at: Date.now(), n: images.length, ...(note ? { note } : {}), ...res };

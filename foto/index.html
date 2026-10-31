@@ -46,9 +46,10 @@ summary{color:var(--muted)}
 <div id="noaccess" class="card" hidden>Нужна личная ссылка. Попроси её у тренера.</div>
 
 <div id="main" hidden>
-  <div class="noterow"><textarea id="note" rows="1" placeholder="Подпись, если надо: «кальмар», «200 г»"></textarea><button class="mic" id="noteMic" aria-label="Сказать голосом">🎤</button></div>
+  <div class="noterow"><textarea id="note" rows="1" placeholder="Подпись к фото или что съел без фото"></textarea><button class="mic" id="noteMic" aria-label="Сказать голосом">🎤</button></div>
   <label class="btn" id="pick">📷 Выбрать фото
   <input id="file" type="file" accept="image/*" multiple hidden></label>
+  <button class="small" id="textOnly" style="display:block;margin:6px auto 0">✍️ Записать без фото — по подписи</button>
   <div id="today" class="card" style="white-space:normal"></div>
   <div id="status" class="muted" style="margin-top:10px"></div>
   <div id="thumbs" class="thumbs"></div>
@@ -164,6 +165,18 @@ function resize(file){
   });
 }
 
+$("textOnly").onclick = async () => {
+  const note = $("note").value.trim();
+  if (!note){ $("note").focus(); $("status").textContent = "Напиши или скажи в поле сверху, что съел: «стакан молока 2,5%»"; return; }
+  $("status").textContent = "Считаю… (5–15 сек)"; $("out").innerHTML = ""; $("thumbs").innerHTML = "";
+  $("textOnly").disabled = true;
+  try {
+    const r = await api("analyze", {images: [], note});
+    $("note").value = ""; hist.unshift(r.entry); renderHistory(); show(r.entry); $("status").textContent = "";
+  } catch (e){ $("status").textContent = "Ошибка: " + e.message; }
+  finally { $("textOnly").disabled = false; }
+};
+
 async function analyze(files){
   files = [...files].sort((a, b) => a.lastModified - b.lastModified).slice(0, 20);
   $("status").textContent = "Готовлю " + files.length + " фото…";
@@ -197,7 +210,7 @@ function show(h){
 
 function card(h){
   const c = document.createElement("div"); c.className = "card";
-  c.textContent = (h.note ? "Подпись: " + h.note + "\n\n" : "") + h.text + (h.fixes ? "\n\nПоправки: " + h.fixes.join("; ") : "");
+  c.textContent = (h.note ? (h.n ? "Подпись: " : "Записано текстом: ") + h.note + "\n\n" : "") + h.text + (h.fixes ? "\n\nПоправки: " + h.fixes.join("; ") : "");
   return c;
 }
 
@@ -259,7 +272,7 @@ function renderHistory(){
 function entry(h){
   const d = document.createElement("details"); d.style.marginTop = "10px";
   const s = document.createElement("summary");
-  s.textContent = new Date(h.at).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"}) + " · фото: " + h.n + (h.totals ? " · " + h.totals.kcal + " ккал" : "");
+  s.textContent = new Date(h.at).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"}) + (h.n ? " · фото: " + h.n : " · текстом") + (h.totals ? " · " + h.totals.kcal + " ккал" : "");
   const c = card(h);
   const del = document.createElement("button"); del.className = "small"; del.textContent = "Удалить этот расчёт";
   del.onclick = async () => {
