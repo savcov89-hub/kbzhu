@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Посчитать">
 <meta name="theme-color" content="#16a34a">
-<link rel="manifest" href="manifest.json">
+<!-- без manifest: iPhone кладёт на экран «Домой» текущий адрес вместе с личной ссылкой ?t= -->
 <link rel="apple-touch-icon" href="icon-180.png?v=2">
 <title>Посчитать</title>
 <style>
@@ -75,8 +75,10 @@ const store = {
   set(k, v){ try { localStorage.setItem(k, v); } catch {} }
 };
 const params = new URLSearchParams(location.search);
-if (params.get("t")) { store.set("token", params.get("t")); history.replaceState(null, "", location.pathname); }
+// Личный ключ держим в адресе: у иконки на экране «Домой» своя память, отдельная от Safari.
+if (params.get("t")) store.set("token", params.get("t"));
 let token = store.get("token", "");
+if (token && params.get("t") !== token) history.replaceState(null, "", location.pathname + "?t=" + token);
 let hist = [];
 
 async function api(route, body){
@@ -119,7 +121,7 @@ async function start(){
 $("saveKey").onclick = async () => {
   try {
     const r = await api("setup", {key: $("key").value.trim()});
-    token = r.token; store.set("token", token); $("setup").hidden = true; start();
+    token = r.token; store.set("token", token); history.replaceState(null, "", location.pathname + "?t=" + token); $("setup").hidden = true; start();
   } catch (e){ alert(e.message); }
 };
 
