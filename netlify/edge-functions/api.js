@@ -112,8 +112,8 @@ async function handle(req) {
   return json({ error: "Неизвестный запрос" }, 404);
 }
 
-// Поиск в интернете — только когда продукт неясен (см. правило в system prompt), не больше 2 запросов.
-const TOOLS = [{ type: "web_search_20260209", name: "web_search", max_uses: 2, user_location: { type: "approximate", country: "RU" } }];
+// Поиск в интернете — только когда продукт неясен (см. правило в system prompt), не больше 10 запросов.
+const TOOLS = [{ type: "web_search_20260209", name: "web_search", max_uses: 10, user_location: { type: "approximate", country: "RU" } }];
 
 async function askClaude(store, content) {
   const key = await store.get("apiKey");
