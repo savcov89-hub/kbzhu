@@ -84,33 +84,54 @@ async function handle(req) {
     });
     content.push({ type: "text", text: "Посчитай еду на этих фото." });
 
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": await store.get("apiKey"),
-        "anthropic-version": "2026-10-21",
-        "anthropic-beta": "server-side-fallback-2026-07-01"
-      },
-      body: JSON.stringify({ model: MODEL, max_tokens: 4000, fallbacks: "default", output_config: { effort: "low" }, system: SYSTEM, messages: [{ role: "user", content }] })
-    });
-    const data = await r.json();
-    if (!r.ok) return json({ error: (data.error && data.error.message) || "Ошибка Claude API" }, 502);
-    if (data.stop_reason === "refusal") return json({ error: "Модель отказалась отвечать на эти фото" }, 502);
-
-    const raw = data.content.filter(b => b.type === "text").map(b => b.text).join("\n").trim();
-    const m = raw.match(/#ИТОГ\s+ккал=(\d+)\s+б=(\d+)\s+ж=(\d+)\s+у=(\d+)/);
-    const entry = {
-      at: Date.now(), n: images.length,
-      text: raw.replace(/\n?#ИТОГ[^\n]*/g, "").trim(),
-      totals: m ? { kcal: +m[1], p: +m[2], f: +m[3], c: +m[4] } : null
-    };
+    const note = String(body.note || "").trim().slice(0, 500);
+    if (note) content.push({ type: "text", text: "Подпись: " + note });
+    const res = await askClaude(store, content);
+    if (res.error) return json(res, 502);
+    const entry = { at: Date.now(), n: images.length, ...(note ? { note } : {}), ...res };
     history.unshift(entry);
     await store.setJSON(histKey, history.slice(0, 500));
     return json({ entry });
   }
 
+  if (route === "fix") {
+    const e = history.find(h => h.at === body.at);
+    if (!e) return json({ error: "Расчёт не найден" }, 404);
+    const note = String(body.note || "").trim().slice(0, 500);
+    if (!note) return json({ error: "Напиши, что исправить" }, 400);
+    const res = await askClaude(store, [{ type: "text", text:
+      "Прошлый расчёт по фото (фото уже нет, есть только этот текст):\n" + e.text +
+      (e.note ? "\nПодпись к фото была: " + e.note : "") +
+      "\n\nПоправка: " + note + "\nПересчитай." }]);
+    if (res.error) return json(res, 502);
+    Object.assign(e, res, { fixes: [...(e.fixes || []), note] });
+    await store.setJSON(histKey, history);
+    return json({ entry: e });
+  }
+
   return json({ error: "Неизвестный запрос" }, 404);
+}
+
+async function askClaude(store, content) {
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": await store.get("apiKey"),
+      "anthropic-version": "2026-10-21",
+      "anthropic-beta": "server-side-fallback-2026-07-01"
+    },
+    body: JSON.stringify({ model: MODEL, max_tokens: 4000, fallbacks: "default", output_config: { effort: "low" }, system: SYSTEM, messages: [{ role: "user", content }] })
+  });
+  const data = await r.json();
+  if (!r.ok) return { error: (data.error && data.error.message) || "Ошибка Claude API" };
+  if (data.stop_reason === "refusal") return { error: "Модель отказалась отвечать на эти фото" };
+  const raw = data.content.filter(b => b.type === "text").map(b => b.text).join("\n").trim();
+  const m = raw.match(/#ИТОГ\s+ккал=(\d+)\s+б=(\d+)\s+ж=(\d+)\s+у=(\d+)/);
+  return {
+    text: raw.replace(/\n?#ИТОГ[^\n]*/g, "").trim(),
+    totals: m ? { kcal: +m[1], p: +m[2], f: +m[3], c: +m[4] } : null
+  };
 }
 
 // Отвечаем сразу и дописываем тело, когда Claude закончит: так не упираемся в 40 секунд до заголовков.

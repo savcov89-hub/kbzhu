@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-title" content="Посчитать">
 <meta name="theme-color" content="#16a34a">
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2">
 <title>Посчитать</title>
 <style>
 :root{--bg:#f6f7f5;--card:#fff;--text:#1c1f1d;--muted:#6b726e;--accent:#16a34a;--border:#e2e5e2}
@@ -27,6 +27,11 @@ summary{color:var(--muted)}
 .today-k{font-size:28px;font-weight:700}
 .today-m{color:var(--muted);margin-top:2px}
 .small{background:none;border:0;color:var(--muted);text-decoration:underline;padding:8px 0;font-size:14px}
+.noterow{display:flex;gap:8px;align-items:stretch;margin-bottom:10px}
+.noterow textarea{flex:1;min-height:48px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:16px;font-family:inherit;resize:vertical}
+.mic{width:56px;border-radius:10px;border:1px solid var(--border);background:var(--card);font-size:24px}
+.mic.on{background:#dc2626;border-color:#dc2626}
+.fixbtn{display:block;width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:16px;font-weight:600}
 </style>
 </head>
 <body>
@@ -41,6 +46,7 @@ summary{color:var(--muted)}
 <div id="noaccess" class="card" hidden>Нужна личная ссылка. Попроси её у тренера.</div>
 
 <div id="main" hidden>
+  <div class="noterow"><textarea id="note" rows="1" placeholder="Подпись, если надо: «кальмар», «200 г»"></textarea><button class="mic" id="noteMic" aria-label="Сказать голосом">🎤</button></div>
   <label class="btn" id="pick">📷 Выбрать фото
   <input id="file" type="file" accept="image/*" multiple hidden></label>
   <div id="today" class="card" style="white-space:normal"></div>
@@ -79,6 +85,24 @@ async function api(route, body){
   if (!r.ok || data.error) throw new Error(data.error || ("HTTP " + r.status));
   return data;
 }
+// Голосовой ввод: распознавание речи браузера, а если его нет — микрофон на клавиатуре iPhone.
+const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+function mic(btn, field){
+  let rec = null;
+  btn.onclick = e => {
+    e.preventDefault();
+    if (rec){ rec.stop(); return; }
+    if (!Rec){ field.focus(); $("status").textContent = "Нажми 🎤 на клавиатуре и говори"; return; }
+    const base = field.value ? field.value.trim() + " " : "";
+    rec = new Rec(); rec.lang = "ru-RU"; rec.interimResults = true; rec.continuous = false;
+    rec.onresult = ev => { field.value = base + [...ev.results].map(r => r[0].transcript).join(""); };
+    rec.onerror = ev => { if (ev.error === "not-allowed" || ev.error === "service-not-allowed"){ field.focus(); $("status").textContent = "Голос недоступен — нажми 🎤 на клавиатуре"; } };
+    rec.onend = () => { rec = null; btn.classList.remove("on"); };
+    btn.classList.add("on");
+    try { rec.start(); } catch { rec = null; btn.classList.remove("on"); field.focus(); }
+  };
+}
+mic($("noteMic"), $("note"));
 const linkFor = t => location.origin + location.pathname + "?t=" + t;
 
 async function start(){
@@ -151,9 +175,10 @@ async function analyze(files){
   $("status").textContent = "Считаю… (10–30 сек)";
   $("file").disabled = true;
   try {
-    const r = await api("analyze", {images});
-    show(r.entry.text);
+    const r = await api("analyze", {images, note: $("note").value.trim()});
+    $("note").value = "";
     hist.unshift(r.entry); renderHistory();
+    show(r.entry);
     $("status").textContent = "";
   } catch (e){
     $("status").textContent = "Ошибка: " + e.message;
@@ -162,9 +187,41 @@ async function analyze(files){
   }
 }
 
-function show(text){
-  const d = document.createElement("div"); d.className = "card"; d.textContent = text;
+function show(h){
+  const d = document.createElement("div");
+  d.append(card(h), fixBox(h));
   $("out").replaceChildren(d);
+}
+
+function card(h){
+  const c = document.createElement("div"); c.className = "card";
+  c.textContent = (h.note ? "Подпись: " + h.note + "\n\n" : "") + h.text + (h.fixes ? "\n\nПоправки: " + h.fixes.join("; ") : "");
+  return c;
+}
+
+// Кнопка «Исправить»: пишешь или говоришь, что не так, — расчёт пересчитывается и заменяется.
+function fixBox(h){
+  const wrap = document.createElement("div");
+  const open = document.createElement("button"); open.className = "small"; open.textContent = "✏️ Исправить";
+  const box = document.createElement("div"); box.hidden = true; box.style.marginTop = "6px";
+  const row = document.createElement("div"); row.className = "noterow";
+  const ta = document.createElement("textarea"); ta.rows = 2; ta.placeholder = "Что не так? Например: это кальмар, а не сыр";
+  const m = document.createElement("button"); m.className = "mic"; m.textContent = "🎤"; m.setAttribute("aria-label", "Сказать голосом");
+  row.append(ta, m); mic(m, ta);
+  const go = document.createElement("button"); go.className = "fixbtn"; go.textContent = "Пересчитать";
+  const st = document.createElement("div"); st.className = "muted"; st.style.marginTop = "6px";
+  open.onclick = () => { box.hidden = !box.hidden; if (!box.hidden) ta.focus(); };
+  go.onclick = async () => {
+    if (!ta.value.trim()) { ta.focus(); return; }
+    go.disabled = true; st.textContent = "Пересчитываю… (5–15 сек)";
+    try {
+      const r = await api("fix", {at: h.at, note: ta.value.trim()});
+      hist = hist.map(x => x.at === h.at ? r.entry : x);
+      renderHistory(); show(r.entry); window.scrollTo(0, 0);
+    } catch (e){ st.textContent = "Ошибка: " + e.message; go.disabled = false; }
+  };
+  box.append(row, go, st); wrap.append(open, box);
+  return wrap;
 }
 
 function renderToday(){
@@ -201,13 +258,13 @@ function entry(h){
   const d = document.createElement("details"); d.style.marginTop = "10px";
   const s = document.createElement("summary");
   s.textContent = new Date(h.at).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"}) + " · фото: " + h.n + (h.totals ? " · " + h.totals.kcal + " ккал" : "");
-  const c = document.createElement("div"); c.className = "card"; c.textContent = h.text;
+  const c = card(h);
   const del = document.createElement("button"); del.className = "small"; del.textContent = "Удалить этот расчёт";
   del.onclick = async () => {
     if (!confirm("Удалить расчёт из истории и из итога дня?")) return;
     hist = (await api("delete", {at: h.at})).history; renderHistory();
   };
-  d.append(s, c, del); return d;
+  d.append(s, c, fixBox(h), del); return d;
 }
 
 $("file").onchange = e => { if (e.target.files.length) analyze(e.target.files); };
