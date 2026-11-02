@@ -23,8 +23,13 @@ h1{font-size:22px;margin:20px 0 12px}
 .thumbs img{width:54px;height:54px;object-fit:cover;border-radius:8px}
 input[type=password],input[type=text]{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:16px}
 details{margin-top:24px}
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;padding:calc(env(safe-area-inset-top) + 12px) 12px 12px}
+.sheet[hidden]{display:none}
+.sheetbox{background:var(--bg);border-radius:16px;padding:14px 16px 18px;width:100%;max-height:100%;overflow:auto}
+.sheetbox details{margin-top:14px}
+.menubtn{position:absolute;top:10px;right:10px;width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;padding:0}
 summary{color:var(--muted)}
-#today{position:sticky;top:env(safe-area-inset-top);z-index:4;margin-top:0;box-shadow:0 0 0 10px var(--bg),0 6px 14px rgba(0,0,0,.06)}
+#today{position:sticky;padding-right:56px;top:env(safe-area-inset-top);z-index:4;margin-top:0;box-shadow:0 0 0 10px var(--bg),0 6px 14px rgba(0,0,0,.06)}
 .today-k{font-size:28px;font-weight:700}
 .today-m{color:var(--muted);margin-top:2px}
 .small{background:none;border:0;color:var(--muted);text-decoration:underline;padding:8px 0;font-size:14px}
@@ -100,6 +105,9 @@ summary .delx{flex:none;margin:-6px -6px -6px 0;padding:6px 10px;border:0;backgr
   <div id="thumbs" class="thumbs"></div>
   <div id="out"></div>
 
+  <div class="sheet" id="sheet" hidden>
+  <div class="sheetbox">
+  <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:19px">Меню</b><button class="small" id="sheetClose" style="font-size:16px;text-decoration:none">Закрыть ✕</button></div>
   <details id="clients" hidden>
     <summary>Клиенты</summary>
     <p class="muted">Добавь клиента — получишь личную ссылку. Отправь её ему: по ней он считает свою еду, у каждого своя история.</p>
@@ -112,6 +120,8 @@ summary .delx{flex:none;margin:-6px -6px -6px 0;padding:6px 10px;border:0;backgr
     <p class="muted">Открой эту ссылку в любом браузере или на другом телефоне — будет та же история. Никому не отправляй.</p>
     <div class="card" id="myLink" style="word-break:break-all"></div>
   </details>
+  </div>
+  </div>
 </div>
 <script>
 const $ = id => document.getElementById(id);
@@ -351,6 +361,12 @@ function fixBox(h){
   return wrap;
 }
 
+const menuBtn = document.createElement("button");
+menuBtn.className = "menubtn"; menuBtn.setAttribute("aria-label", "Клиенты и моя ссылка");
+menuBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
+menuBtn.onclick = () => { $("sheet").hidden = false; };
+$("sheetClose").onclick = () => { $("sheet").hidden = true; };
+$("sheet").onclick = e => { if (e.target === $("sheet")) $("sheet").hidden = true; };
 function renderToday(){
   const day = new Date().toDateString();
   const sum = {kcal: 0, p: 0, f: 0, c: 0}; let n = 0;
@@ -362,6 +378,7 @@ function renderToday(){
   $("today").innerHTML = '<div class="muted">Сегодня, ' + date + (n ? " · расчётов: " + n : "") + '</div>' +
     '<div class="today-k">' + sum.kcal + ' ккал</div>' +
     '<div class="today-m">Б ' + sum.p + ' · Ж ' + sum.f + ' · У ' + sum.c + '</div>';
+  $("today").append(menuBtn);
 }
 
 let openAt = null;
