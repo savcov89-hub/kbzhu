@@ -362,6 +362,9 @@ function renderMeals() {
           <div class="entry-main"><div class="entry-name">${esc(e.n)}</div>
           <div class="entry-sub">${esc(amountText(e))} · Б ${fmt(n.p)} Ж ${fmt(n.f)} У ${fmt(n.c)} Кл ${fmt(n.fb)}</div></div>
           <div class="entry-kcal">${fmt(n.k)}</div>
+          <button class="entry-del" data-act="del" data-id="${e.id}" aria-label="Удалить ${esc(e.n)}">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </li>`;
       }).join('')}</ul>` : ''}
     </section>`;
@@ -1282,6 +1285,15 @@ document.addEventListener('click', e => {
   const act = t.dataset.act;
   if (act === 'add') sheet.open(addView(t.dataset.meal));
   else if (act === 'profile') sheet.open(profileView());
+  else if (act === 'del') {
+    const entry = dayEntries(state.date).find(x => x.id === t.dataset.id);
+    if (!entry || !confirm(`Удалить «${entry.n}» из дневника?`)) return;
+    state.diary[state.date] = dayEntries(state.date).filter(x => x.id !== entry.id);
+    if (!state.diary[state.date].length) delete state.diary[state.date];
+    saveDiary();
+    renderMain();
+    toast('Удалено из дневника');
+  }
   else if (act === 'edit') {
     const entry = dayEntries(state.date).find(x => x.id === t.dataset.id);
     if (!entry) return;

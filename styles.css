@@ -126,6 +126,8 @@ button { cursor: pointer; }
 .entry-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .entry-sub { color: var(--muted); font-size: 13px; }
 .entry-kcal { font-weight: 600; white-space: nowrap; }
+.entry-del { flex: none; display: grid; place-items: center; width: 36px; height: 36px; margin: -6px -8px -6px 0; border: 0; border-radius: 10px; background: none; color: var(--muted); cursor: pointer; }
+.entry-del:active { background: var(--line); color: #dc2626; }
 .meal-empty { color: var(--muted); font-size: 14px; padding: 0 0 12px; }
 
 /* Кнопки */
