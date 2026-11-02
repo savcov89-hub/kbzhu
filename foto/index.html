@@ -31,6 +31,7 @@ summary{color:var(--muted)}
 .noterow textarea{flex:1;min-height:48px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:16px;font-family:inherit;resize:vertical}
 .mic{width:56px;border-radius:10px;border:1px solid var(--border);background:var(--card);font-size:24px}
 .mic.on{background:#dc2626;border-color:#dc2626}
+summary .delx{float:right;margin:-8px -4px 0 0;padding:6px 10px;border:0;background:none;font-size:18px;line-height:1}
 .fixbtn{display:block;width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:16px;font-weight:600}
 </style>
 </head>
@@ -322,11 +323,16 @@ function entry(h){
   const s = document.createElement("summary");
   s.textContent = new Date(h.at).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"}) + (h.n ? " · фото: " + h.n : " · текстом") + (h.totals ? " · " + h.totals.kcal + " ккал" : "");
   const c = card(h);
-  const del = document.createElement("button"); del.className = "small"; del.textContent = "Удалить этот расчёт";
-  del.onclick = async () => {
-    if (!confirm("Удалить расчёт из истории и из итога дня?")) return;
-    hist = (await api("delete", {at: h.at})).history; renderHistory();
+  const remove = async ev => {
+    ev.preventDefault(); ev.stopPropagation();
+    if (!confirm("Удалить этот приём пищи из истории и из итога дня?")) return;
+    try { hist = (await api("delete", {at: h.at})).history; renderHistory(); }
+    catch (e){ alert("Не удалось удалить: " + e.message); }
   };
+  const x = document.createElement("button"); x.className = "delx"; x.textContent = "🗑"; x.setAttribute("aria-label", "Удалить приём пищи");
+  x.onclick = remove; s.append(x);
+  const del = document.createElement("button"); del.className = "small"; del.textContent = "Удалить этот приём пищи";
+  del.onclick = remove;
   d.append(s, c, fixBox(h), del); return d;
 }
 
