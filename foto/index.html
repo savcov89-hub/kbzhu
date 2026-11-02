@@ -33,20 +33,25 @@ summary{color:var(--muted)}
 .mic.on{background:#dc2626;border-color:#dc2626}
 summary .delx{float:right;margin:-8px -4px 0 0;padding:6px 10px;border:0;background:none;font-size:18px;line-height:1}
 .dock{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--card);border-top:3px solid var(--accent);border-radius:18px 18px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.08);padding:10px 12px calc(env(safe-area-inset-bottom) + 10px)}
-.dock textarea{width:100%;min-height:48px;max-height:120px;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-family:inherit;resize:none;display:block}
+.dock textarea{flex:1;min-width:0;min-height:44px;max-height:120px;padding:10px 14px;border-radius:22px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-family:inherit;resize:none;display:block}
 .dock .pend{display:flex;gap:10px;overflow-x:auto;margin-bottom:8px;padding:6px 6px 0 0}
 .dock .pend:empty{display:none}
 .dock .pend div{position:relative;flex:none}
 .dock .pend img{width:56px;height:56px;object-fit:cover;border-radius:10px;display:block}
 .dock .pend button{position:absolute;top:-4px;right:-4px;width:22px;height:22px;border-radius:50%;border:0;background:#1c1f1d;color:#fff;font-size:12px;padding:0}
-.tools{display:flex;gap:8px;margin-top:8px}
-.tool{flex:1;padding:11px 6px;border-radius:12px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:15px;font-weight:600;text-align:center}
-.tool.on{background:#dc2626;border-color:#dc2626;color:#fff}
-.dayrow{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px}
-.sendrow{display:flex;gap:8px;align-items:flex-end}
-.sendrow textarea{flex:1}
-.go{flex:none;height:48px;padding:0 14px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-size:16px;font-weight:700}
-.go:disabled{opacity:.45}
+.dock textarea:focus{outline:none;border-color:var(--accent)}
+.bar{display:flex;gap:6px;align-items:flex-end}
+.rb{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;padding:0}
+.rb.plus{background:var(--bg);border:1px solid var(--border);color:var(--text)}
+.rb.plus.open svg{transform:rotate(45deg)}
+.rb.on{background:#dc2626;color:#fff}
+.rb.go{background:var(--accent);color:#fff}
+.rb.go:disabled{background:var(--border);color:var(--muted)}
+.menu{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:8px;overflow:hidden}
+.mi{display:flex;align-items:center;gap:12px;padding:13px 14px;font-size:16px;border-bottom:1px solid var(--border)}
+.mi:last-child{border-bottom:0}
+.mi span{font-size:20px;width:24px;text-align:center}
+.mi select{margin-left:auto;font-size:15px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px 6px}
 .fixbtn{display:block;width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:16px;font-weight:600}
 </style>
 </head>
@@ -64,21 +69,21 @@ summary .delx{float:right;margin:-8px -4px 0 0;padding:6px 10px;border:0;backgro
 <div id="main" hidden>
   <div class="dock" id="dock">
     <div class="pend" id="pend"></div>
-    <div class="sendrow">
-      <textarea id="note" rows="1" placeholder="Что съел? Можно без фото"></textarea>
-      <button class="go" id="send" disabled>Посчитать</button>
+    <div class="menu" id="menu" hidden>
+      <label class="mi" id="pick"><span>🖼</span>Фото из галереи<input id="file" type="file" accept="image/*" multiple hidden></label>
+      <label class="mi" id="shoot"><span>📷</span>Снять камерой<input id="cam" type="file" accept="image/*" capture="environment" hidden></label>
+      <label class="mi"><span>📅</span>День<select id="day" aria-label="День">
+        <option value="auto">авто</option><option value="0">сегодня</option><option value="1">вчера</option><option value="2">позавчера</option>
+      </select></label>
     </div>
-    <div class="tools">
-      <label class="tool" id="pick">Фото<input id="file" type="file" accept="image/*" multiple hidden></label>
-      <label class="tool" id="shoot">Камера<input id="cam" type="file" accept="image/*" capture="environment" hidden></label>
-      <button class="tool" id="noteMic" aria-label="Сказать голосом"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:auto"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/></svg></button>
+    <div class="bar">
+      <button class="rb plus" id="plus" aria-label="Добавить фото"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+      <textarea id="note" rows="1" placeholder="Что съел?"></textarea>
+      <button class="rb" id="noteMic" aria-label="Сказать голосом"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/></svg></button>
+      <button class="rb go" id="send" disabled aria-label="Посчитать"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
     </div>
-    <div class="dayrow">
-      <span class="muted" id="sendHint"></span>
-      <select id="day" aria-label="День" style="font-size:14px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:6px">
-        <option value="auto">день: авто</option><option value="0">сегодня</option><option value="1">вчера</option><option value="2">позавчера</option>
-      </select>
-    </div>
+    <div class="muted" id="sendHint" style="margin:6px 4px 0"></div>
+  </div>
   </div>
   <div id="today" class="card" style="white-space:normal"></div>
   <div id="status" class="muted" style="margin-top:10px"></div>
@@ -242,7 +247,7 @@ let pending = [];
 function refresh(){
   const note = $("note").value.trim(), n = pending.length;
   $("send").disabled = !note && !n;
-  $("sendHint").textContent = n ? "Добавлено фото: " + n + (note ? " + подпись" : "") : note ? "Посчитаю по тексту" : "";
+  const day = $("day").value; $("sendHint").textContent = day === "auto" ? "" : "Запишу на " + $("day").selectedOptions[0].text;
   $("pend").replaceChildren(...pending.map((p, i) => {
     const d = document.createElement("div"), im = document.createElement("img"), x = document.createElement("button");
     im.src = p.url; x.textContent = "✕"; x.setAttribute("aria-label", "Убрать фото");
@@ -254,7 +259,10 @@ function refresh(){
 $("note").addEventListener("input", () => {
   const t = $("note"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 120) + "px"; refresh();
 });
+$("plus").onclick = () => { $("menu").hidden = !$("menu").hidden; $("plus").classList.toggle("open", !$("menu").hidden); refresh(); };
+$("day").onchange = refresh;
 $("file").onchange = $("cam").onchange = e => {
+  $("menu").hidden = true; $("plus").classList.remove("open");
   for (const f of [...e.target.files]) if (pending.length < 20) pending.push({file: f, url: URL.createObjectURL(f)});
   e.target.value = ""; refresh();
 };
