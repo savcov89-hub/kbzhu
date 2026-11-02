@@ -110,14 +110,14 @@ summary .delx{flex:none;margin:-6px -6px -6px 0;padding:6px 10px;border:0;backgr
   <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:19px">Меню</b><button class="small" id="sheetClose" style="font-size:16px;text-decoration:none">Закрыть ✕</button></div>
   <details id="clients" hidden>
     <summary>Клиенты</summary>
-    <p class="muted">Добавь клиента — получишь личную ссылку. Отправь её ему: по ней он считает свою еду, у каждого своя история.</p>
+    <p class="muted">Свою ссылку клиентам не отправляй. Впиши имя клиента и нажми «Добавить клиента» — откроется «Поделиться», выбери Telegram или WhatsApp и отправь. У клиента будет своя ссылка и своя история.</p>
     <input id="cname" type="text" placeholder="Имя клиента">
     <button class="btn" id="addClient" style="margin-top:10px;font-size:17px;padding:14px">Добавить клиента</button>
     <div id="clientList"></div>
   </details>
   <details>
     <summary>Моя ссылка</summary>
-    <p class="muted">Открой эту ссылку в любом браузере или на другом телефоне — будет та же история. Никому не отправляй.</p>
+    <p class="muted">Открой эту ссылку в любом браузере или на другом телефоне — будет та же история. Никому не отправляй, даже клиентам: для них есть «Клиенты» выше.</p>
     <div class="card" id="myLink" style="word-break:break-all"></div>
   </details>
   </div>
@@ -194,11 +194,19 @@ $("addClient").onclick = async () => {
   try {
     const r = await api("invite", {name: $("cname").value});
     $("cname").value = ""; await loadClients();
-    const link = linkFor(r.token);
-    if (navigator.share) navigator.share({text: "Твоя ссылка для подсчёта еды по фото: " + link}).catch(() => {});
-    else { try { await navigator.clipboard.writeText(link); } catch {} alert("Ссылка клиента:\n" + link); }
+    shareLink(linkFor(r.token));
   } catch (e){ alert(e.message); }
 };
+
+// Отправить клиенту его личную ссылку: меню «Поделиться» iPhone, а если оно не открылось — окно со ссылкой для копирования.
+async function shareLink(link){
+  const text = "Твоя ссылка, чтобы считать еду: " + link;
+  if (navigator.share){
+    try { await navigator.share({text}); return; } catch (e){ if (e.name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(link); } catch {}
+  prompt("Ссылка клиента (уже скопирована, если телефон разрешил). Отправь её клиенту:", link);
+}
 
 async function loadClients(){
   const r = await api("people");
@@ -206,7 +214,7 @@ async function loadClients(){
     const d = document.createElement("div"); d.className = "card"; d.style.whiteSpace = "normal";
     const n = document.createElement("div"); n.textContent = p.name; n.style.fontWeight = "600";
     const share = document.createElement("button"); share.className = "small"; share.textContent = "Отправить ссылку";
-    share.onclick = () => { const l = linkFor(p.token); navigator.share ? navigator.share({text: l}).catch(() => {}) : alert(l); };
+    share.onclick = () => shareLink(linkFor(p.token));
     const rm = document.createElement("button"); rm.className = "small"; rm.textContent = "Закрыть доступ"; rm.style.marginLeft = "12px";
     rm.onclick = async () => { if (confirm("Закрыть доступ для " + p.name + "?")){ await api("revoke", {who: p.token}); loadClients(); } };
     d.append(n, share, rm); return d;
