@@ -125,21 +125,29 @@ async function api(route, body){
 }
 // Голосовой ввод: распознавание речи браузера, а если его нет — микрофон на клавиатуре iPhone.
 const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+// Один распознаватель на всё время, пока открыта страница: iPhone спрашивает разрешение
+// на каждый новый объект, а повторный запуск того же обычно проходит без вопроса.
+let shared = null, active = null;
+function recognizer(){
+  if (shared) return shared;
+  shared = new Rec(); shared.lang = "ru-RU"; shared.interimResults = true; shared.continuous = false;
+  shared.onresult = ev => { if (active) active.result([...ev.results].map(r => r[0].transcript).join("")); };
+  shared.onerror = ev => { if (active && (ev.error === "not-allowed" || ev.error === "service-not-allowed")) $("status").textContent = "iPhone не дал микрофон. Разреши его и нажми ещё раз"; };
+  shared.onend = () => { const a = active; active = null; if (a) a.done(); };
+  return shared;
+}
 function mic(btn, field){
-  let rec = null;
   btn.onclick = e => {
     e.preventDefault();
-    if (rec){ rec.stop(); return; }
-    if (!Rec){ field.focus(); $("status").textContent = "Нажми 🎤 на клавиатуре и говори"; return; }
+    if (!Rec){ $("status").textContent = "Этот браузер не умеет голосовой ввод"; return; }
+    const r = recognizer();
+    if (active){ const mine = active.btn === btn; r.stop(); if (mine) return; }
     const base = field.value ? field.value.trim() + " " : "";
-    rec = new Rec(); rec.lang = "ru-RU"; rec.interimResults = true; rec.continuous = false;
-    rec.onresult = ev => { field.value = base + [...ev.results].map(r => r[0].transcript).join(""); field.dispatchEvent(new Event("input")); };
-    rec.onerror = ev => { if (ev.error === "not-allowed" || ev.error === "service-not-allowed"){ field.focus(); $("status").textContent = "Голос недоступен — нажми 🎤 на клавиатуре"; } };
-    const label = btn.textContent, words = label.length > 2;
-    const off = () => { rec = null; btn.classList.remove("on"); if (words) btn.textContent = label; field.dispatchEvent(new Event("input")); };
-    rec.onend = off;
-    btn.classList.add("on"); if (words) btn.textContent = "Стоп";
-    try { rec.start(); } catch { off(); field.focus(); }
+    btn.classList.add("on");
+    active = {btn,
+      result: t => { field.value = base + t; field.dispatchEvent(new Event("input")); },
+      done: () => { btn.classList.remove("on"); field.dispatchEvent(new Event("input")); }};
+    try { r.start(); } catch { const a = active; active = null; a.done(); }
   };
 }
 mic($("noteMic"), $("note"));
