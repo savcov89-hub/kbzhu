@@ -31,7 +31,15 @@ summary{color:var(--muted)}
 .noterow textarea{flex:1;min-height:48px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:16px;font-family:inherit;resize:vertical}
 .mic{width:56px;border-radius:10px;border:1px solid var(--border);background:var(--card);font-size:24px}
 .mic.on{background:#dc2626;border-color:#dc2626}
-summary .delx{float:right;margin:-8px -4px 0 0;padding:6px 10px;border:0;background:none;font-size:18px;line-height:1}
+.meal>summary{display:flex;align-items:center;gap:6px;color:var(--text);padding:6px 0}
+.meal>summary{list-style:none}
+.meal>summary::-webkit-details-marker{display:none}
+.meal>summary::before{content:"›";color:var(--muted);font-size:20px;width:12px;transition:transform .15s}
+.meal[open]>summary::before{transform:rotate(90deg)}
+.meal>summary .t{color:var(--muted);flex:none}
+.meal>summary .nm{flex:1;min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25}
+.meal>summary .kc{flex:none;font-weight:600}
+summary .delx{flex:none;margin:-6px -6px -6px 0;padding:6px 10px;border:0;background:none;font-size:18px;line-height:1}
 .dock{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--card);border-top:3px solid var(--accent);border-radius:18px 18px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.08);padding:10px 12px calc(env(safe-area-inset-bottom) + 22px)}
 .dock textarea{flex:1;min-width:0;min-height:44px;max-height:120px;padding:10px 14px;border-radius:22px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-family:inherit;resize:none;display:block}
 .dock .pend{display:flex;gap:10px;overflow-x:auto;margin-bottom:8px;padding:6px 6px 0 0}
@@ -86,10 +94,10 @@ summary .delx{float:right;margin:-8px -4px 0 0;padding:6px 10px;border:0;backgro
   </div>
   </div>
   <div id="today" class="card" style="white-space:normal"></div>
+  <div id="hist"></div>
   <div id="status" class="muted" style="margin-top:10px"></div>
   <div id="thumbs" class="thumbs"></div>
   <div id="out"></div>
-  <div id="hist"></div>
 
   <details id="clients" hidden>
     <summary>Клиенты</summary>
@@ -293,11 +301,11 @@ async function analyze(files){
       images.push({data: url.split(",")[1], time: new Date(times[i]).toLocaleString("ru-RU", {day: "numeric", month: "long", hour: "2-digit", minute: "2-digit"})});
     }
     $("status").textContent = files.length ? "Считаю… (10–30 сек)" : "Считаю… (5–15 сек)";
-    window.scrollTo({top: 0, behavior: "smooth"});
+    toBottom();
     const r = await api("analyze", {images, note, at: chosenAt(times)});
     $("note").value = ""; $("note").style.height = "auto";
     pending.forEach(p => URL.revokeObjectURL(p.url)); pending = [];
-    addEntry(r.entry); show(r.entry); $("status").textContent = "";
+    $("thumbs").innerHTML = ""; addEntry(r.entry); $("status").textContent = ""; toBottom();
   } catch (e){
     $("status").textContent = "Ошибка: " + e.message + ". Фото и текст остались, нажми «Посчитать» ещё раз.";
   } finally {
@@ -335,7 +343,7 @@ function fixBox(h){
     try {
       const r = await api("fix", {at: h.at, note: ta.value.trim()});
       hist = hist.map(x => x.at === h.at ? r.entry : x);
-      renderHistory(); show(r.entry); window.scrollTo(0, 0);
+      openAt = r.entry.at; renderHistory();
     } catch (e){ st.textContent = "Ошибка: " + e.message; go.disabled = false; }
   };
   box.append(row, go, st); wrap.append(open, box);
@@ -355,10 +363,19 @@ function renderToday(){
     '<div class="today-m">Б ' + sum.p + ' · Ж ' + sum.f + ' · У ' + sum.c + '</div>';
 }
 
+let openAt = null;
+const toBottom = () => requestAnimationFrame(() => window.scrollTo({top: document.body.scrollHeight, behavior: "smooth"}));
+// Короткое название: что съел, из строк «1. Творог 5% с бананом — 250 г — …».
+function mealName(h){
+  const names = (h.text || "").split("\n").map(l => l.match(/^\s*\d+[.)]\s*(.+?)\s+[—–-]\s/)).filter(Boolean).map(m => m[1]);
+  if (names.length) return names.join(", ");
+  return h.note || (h.n ? "фото" : "запись");
+}
+
 function renderHistory(){
   renderToday();
   const nodes = []; let lastDay = null;
-  for (const h of hist.slice(0, 60)){
+  for (const h of hist.slice(0, 60).reverse()){
     const day = new Date(h.at).toDateString();
     if (day !== lastDay){
       lastDay = day;
@@ -370,12 +387,15 @@ function renderHistory(){
     nodes.push(entry(h));
   }
   $("hist").replaceChildren(...nodes);
+  openAt = null;
 }
 
 function entry(h){
   const d = document.createElement("details"); d.style.marginTop = "10px";
+  d.className = "meal"; if (h.at === openAt) d.open = true;
   const s = document.createElement("summary");
-  s.textContent = new Date(h.at).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"}) + (h.n ? " · фото: " + h.n : " · текстом") + (h.totals ? " · " + h.totals.kcal + " ккал" : "");
+  const sp = (cls, txt) => { const e = document.createElement("span"); e.className = cls; e.textContent = txt; return e; };
+  s.append(sp("t", new Date(h.at).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"})), sp("nm", mealName(h)), sp("kc", h.totals ? h.totals.kcal + " ккал" : ""));
   const c = card(h);
   const remove = async ev => {
     ev.preventDefault(); ev.stopPropagation();
@@ -402,7 +422,7 @@ function hideForeign(){
 hideForeign();
 new MutationObserver(hideForeign).observe(document.documentElement, {childList: true});
 new MutationObserver(hideForeign).observe(document.body, {childList: true});
-start().then(refresh);
+start().then(() => { refresh(); window.scrollTo(0, document.body.scrollHeight); });
 </script>
 </body>
 </html>
