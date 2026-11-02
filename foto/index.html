@@ -32,7 +32,7 @@ summary{color:var(--muted)}
 .mic{width:56px;border-radius:10px;border:1px solid var(--border);background:var(--card);font-size:24px}
 .mic.on{background:#dc2626;border-color:#dc2626}
 summary .delx{float:right;margin:-8px -4px 0 0;padding:6px 10px;border:0;background:none;font-size:18px;line-height:1}
-.dock{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--card);border-top:3px solid var(--accent);border-radius:18px 18px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.08);padding:10px 12px calc(env(safe-area-inset-bottom) + 10px)}
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--card);border-top:3px solid var(--accent);border-radius:18px 18px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.08);padding:10px 12px calc(env(safe-area-inset-bottom) + 22px)}
 .dock textarea{flex:1;min-width:0;min-height:44px;max-height:120px;padding:10px 14px;border-radius:22px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-family:inherit;resize:none;display:block}
 .dock .pend{display:flex;gap:10px;overflow-x:auto;margin-bottom:8px;padding:6px 6px 0 0}
 .dock .pend:empty{display:none}
@@ -390,6 +390,17 @@ function entry(h){
   d.append(s, c, fixBox(h), del); return d;
 }
 
+// Чужие плашки, которые хостинг вставляет поверх страницы (например «Powered by Netlify»), прячем.
+const own = new Set(["title", "setup", "noaccess", "main"]);
+function hideForeign(){
+  for (const el of [...document.body.children, ...document.documentElement.children]){
+    if (el === document.body || el === document.head || own.has(el.id) || /^(SCRIPT|STYLE|LINK|META|NOSCRIPT)$/.test(el.tagName)) continue;
+    el.style.setProperty("display", "none", "important");
+  }
+}
+hideForeign();
+new MutationObserver(hideForeign).observe(document.documentElement, {childList: true});
+new MutationObserver(hideForeign).observe(document.body, {childList: true});
 start().then(refresh);
 </script>
 </body>
