@@ -50,4 +50,4 @@ https://savcov89-hub.github.io/kbzhu/?trainer=ваш_ник
 
 ## Подсчёт еды по фото (для тренера)
 
-`foto/` — отдельная страница https://savcov89-hub.github.io/kbzhu/foto/: выбираешь фото еды на ладони (одно или за весь день), Claude считает граммы, калории и БЖУ. Ключ Claude API вводится один раз в «Настройках» и хранится только в телефоне. Замеры ладони и вся логика зашиты в `foto/index.html` (константа `SYSTEM`).
+`foto/` — страница https://hammer-kbzhu.netlify.app/foto/: выбираешь фото еды на ладони (одно или за весь день), Gemini считает граммы, калории и БЖУ. Сервер — `netlify/edge-functions/api.js`, ключ в переменной Netlify `GEMINI_API_KEY`, модель можно сменить переменной `GEMINI_MODEL`. Замеры ладони и логика — `netlify/shared/system-prompt.js`.
