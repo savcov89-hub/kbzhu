@@ -1,10 +1,9 @@
-// Сервер страницы foto/ (Netlify Edge Function: ожидание ответа Claude не тратит лимит времени).
-// хранит ключ Claude API, пускает по личным ссылкам,
+// Сервер страницы foto/ (Netlify Edge Function: ожидание ответа модели не тратит лимит времени).
+// Считает через Gemini API (ключ в переменной GEMINI_API_KEY в Netlify), пускает по личным ссылкам,
 // считает еду по фото и хранит историю каждого человека.
 import { getStore } from "@netlify/blobs";
 import { SYSTEM } from "../shared/system-prompt.js";
 
-const MODEL = "claude-sonnet-5-5";
 const DAILY_LIMIT = 40;      // расчётов на человека в день
 const MAX_PHOTOS = 20;
 
@@ -23,14 +22,13 @@ async function handle(req) {
 
   // Первый запуск: владелец отдаёт ключ API, получает свою личную ссылку.
   if (route === "status") {
-    return json({ configured: !!(await store.get("apiKey")), user: users[token] ? { name: users[token].name, owner: !!users[token].owner } : null });
+    return json({ configured: Object.values(users).some(u => u.owner), user: users[token] ? { name: users[token].name, owner: !!users[token].owner } : null });
   }
   if (route === "setup") {
-    if (await store.get("apiKey")) return json({ error: "Сервер уже настроен" }, 409);
-    if (!/^sk-ant-/.test(body.key || "")) return json({ error: "Это не ключ Claude API" }, 400);
+    if (Object.values(users).some(u => u.owner)) return json({ error: "Сервер уже настроен" }, 409);
+    if (!geminiKey()) return json({ error: "Сначала добавь GEMINI_API_KEY в настройках Netlify" }, 400);
     const t = newToken();
     users[t] = { name: "Михаил", owner: true, created: Date.now() };
-    await store.set("apiKey", body.key.trim());
     await store.setJSON("users", users);
     return json({ token: t });
   }
@@ -89,7 +87,7 @@ async function handle(req) {
     } else {
       content.push({ type: "text", text: "Фото нет, еда описана словами. Посчитай по описанию: если вес или объём не назван — бери типичную порцию и назови допущение.\nОписание: " + note });
     }
-    const res = await askClaude(store, content);
+    const res = await askModel(content);
     if (res.error) return json(res, 502);
     // День записи: время съёмки с телефона (до 14 дней назад), иначе сейчас.
     const now = Date.now();
@@ -108,7 +106,7 @@ async function handle(req) {
     if (!e) return json({ error: "Расчёт не найден" }, 404);
     const note = String(body.note || "").trim().slice(0, 500);
     if (!note) return json({ error: "Напиши, что исправить" }, 400);
-    const res = await askClaude(store, [{ type: "text", text:
+    const res = await askModel([{ type: "text", text:
       "Прошлый расчёт по фото (фото уже нет, есть только этот текст):\n" + e.text +
       (e.note ? "\nПодпись к фото была: " + e.note : "") +
       "\n\nПоправка: " + note + "\nПересчитай." }]);
@@ -121,39 +119,35 @@ async function handle(req) {
   return json({ error: "Неизвестный запрос" }, 404);
 }
 
-// Поиск в интернете — только когда продукт неясен (см. правило в system prompt), не больше 10 запросов.
-const TOOLS = [{ type: "web_search_20260209", name: "web_search", max_uses: 10, user_location: { type: "approximate", country: "RU" } }];
+// Модель Gemini: по умолчанию свежая Flash (понимает фото). Можно сменить переменной GEMINI_MODEL в Netlify.
+const GEMINI_MODEL = () => Netlify.env.get("GEMINI_MODEL") || "gemini-flash-latest";
+const geminiKey = () => Netlify.env.get("GEMINI_API_KEY") || "";
 
-async function askClaude(store, content) {
-  const key = await store.get("apiKey");
-  const messages = [{ role: "user", content }];
-  let data;
-  for (let i = 0; i < 3; i++) {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2026-10-21",
-        "anthropic-beta": "server-side-fallback-2026-07-01"
-      },
-      body: JSON.stringify({
-        model: MODEL, max_tokens: 4000, fallbacks: "default", output_config: { effort: "low" },
-        system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-        tools: TOOLS, messages
-      })
-    });
-    data = await r.json();
-    if (!r.ok) return { error: (data.error && data.error.message) || "Ошибка Claude API" };
-    if (data.stop_reason !== "pause_turn") break;
-    messages.push({ role: "assistant", content: data.content });
-  }
-  if (data.stop_reason === "refusal") return { error: "Модель отказалась отвечать на эти фото" };
-  // Берём текст после последнего поиска: до него модель могла написать «ищу…».
-  const blocks = data.content;
-  let from = 0;
-  blocks.forEach((b, i) => { if (b.type === "web_search_tool_result") from = i + 1; });
-  const raw = blocks.slice(from).filter(b => b.type === "text").map(b => b.text).join("").trim();
+async function askModel(content) {
+  const key = geminiKey();
+  if (!key) return { error: "На сервере нет ключа Gemini (переменная GEMINI_API_KEY в Netlify)" };
+  const parts = content.map(c => c.type === "image"
+    ? { inline_data: { mime_type: c.source.media_type, data: c.source.data } }
+    : { text: c.text });
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL() + ":generateContent", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: SYSTEM }] },
+      contents: [{ role: "user", parts }],
+      // Поиск Google — только когда продукт неясен (см. правило в system prompt).
+      tools: [{ google_search: {} }],
+      generationConfig: { maxOutputTokens: 8192, temperature: 0.4 }
+    })
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) return { error: (data.error && data.error.message) || ("Ошибка Gemini API " + r.status) };
+  if (data.promptFeedback && data.promptFeedback.blockReason) return { error: "Модель отказалась отвечать на эти фото" };
+  const cand = (data.candidates || [])[0];
+  if (!cand || ["SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "IMAGE_SAFETY"].includes(cand.finishReason))
+    return { error: "Модель отказалась отвечать на эти фото" };
+  const raw = ((cand.content && cand.content.parts) || []).filter(p => p.text && !p.thought).map(p => p.text).join("").trim();
+  if (!raw) return { error: "Пустой ответ модели, попробуй ещё раз" };
   const m = raw.match(/#ИТОГ\s+ккал=(\d+)\s+б=(\d+)\s+ж=(\d+)\s+у=(\d+)/);
   return {
     text: raw.replace(/\n?#ИТОГ[^\n]*/g, "").trim(),
@@ -161,7 +155,7 @@ async function askClaude(store, content) {
   };
 }
 
-// Отвечаем сразу и дописываем тело, когда Claude закончит: так не упираемся в 40 секунд до заголовков.
+// Отвечаем сразу и дописываем тело, когда модель закончит: так не упираемся в 40 секунд до заголовков.
 export default (req) => {
   const enc = new TextEncoder();
   const body = new ReadableStream({
