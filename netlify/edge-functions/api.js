@@ -119,9 +119,14 @@ async function handle(req) {
   return json({ error: "Неизвестный запрос" }, 404);
 }
 
-// Модель Gemini: по умолчанию свежая Flash (понимает фото). Можно сменить переменной GEMINI_MODEL в Netlify.
-const GEMINI_MODEL = () => Netlify.env.get("GEMINI_MODEL") || "gemini-flash-latest";
+// Модели Gemini по очереди: если первая занята или нет квоты — пробуем следующую.
+// Список можно задать переменной GEMINI_MODEL в Netlify (через запятую).
+const MODELS = () => (Netlify.env.get("GEMINI_MODEL") || "gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite")
+  .split(",").map(s => s.trim()).filter(Boolean);
 const geminiKey = () => Netlify.env.get("GEMINI_API_KEY") || "";
+// Поиск Google в бесплатном тарифе недоступен: включается переменной GEMINI_SEARCH=1 (платный тариф).
+const useSearch = () => Netlify.env.get("GEMINI_SEARCH") === "1";
+const SYSTEM_NO_SEARCH = SYSTEM.replace(/ПОИСК В ИНТЕРНЕТЕ\n[^\n]*\n\n/, "");
 
 async function askModel(content) {
   const key = geminiKey();
@@ -129,19 +134,26 @@ async function askModel(content) {
   const parts = content.map(c => c.type === "image"
     ? { inline_data: { mime_type: c.source.media_type, data: c.source.data } }
     : { text: c.text });
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL() + ":generateContent", {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: SYSTEM }] },
-      contents: [{ role: "user", parts }],
-      // Поиск Google — только когда продукт неясен (см. правило в system prompt).
-      tools: [{ google_search: {} }],
-      generationConfig: { maxOutputTokens: 8192, temperature: 0.4 }
-    })
+  const search = useSearch();
+  const payload = JSON.stringify({
+    system_instruction: { parts: [{ text: search ? SYSTEM : SYSTEM_NO_SEARCH }] },
+    contents: [{ role: "user", parts }],
+    ...(search ? { tools: [{ google_search: {} }] } : {}),
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.4 }
   });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) return { error: (data.error && data.error.message) || ("Ошибка Gemini API " + r.status) };
+  let r, data, lastErr = "";
+  for (const model of MODELS()) {
+    r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: payload
+    });
+    data = await r.json().catch(() => ({}));
+    if (r.ok) break;
+    lastErr = (data.error && data.error.message) || ("Ошибка Gemini API " + r.status);
+    if (![404, 429, 500, 503].includes(r.status)) break;
+  }
+  if (!r.ok) return { error: lastErr };
   if (data.promptFeedback && data.promptFeedback.blockReason) return { error: "Модель отказалась отвечать на эти фото" };
   const cand = (data.candidates || [])[0];
   if (!cand || ["SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "IMAGE_SAFETY"].includes(cand.finishReason))
