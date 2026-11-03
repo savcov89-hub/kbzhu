@@ -73,9 +73,8 @@ summary .delx{flex:none;margin:-6px -6px -6px 0;padding:6px 10px;border:0;backgr
 <h1 id="title">Посчитать еду</h1>
 
 <div id="setup" hidden>
-  <p>Первый запуск. Вставь ключ Claude API (console.anthropic.com → API Keys). Он уйдёт на сервер и больше нигде не будет виден.</p>
-  <input id="key" type="password" placeholder="sk-ant-..." autocomplete="off">
-  <button class="btn" id="saveKey" style="margin-top:10px">Сохранить и начать</button>
+  <p>Первый запуск. Ключ Gemini API добавляется в настройках Netlify (переменная GEMINI_API_KEY). Потом нажми кнопку — получишь личную ссылку.</p>
+  <button class="btn" id="saveKey" style="margin-top:10px">Начать</button>
 </div>
 
 <div id="noaccess" class="card" hidden>Нужна личная ссылка. Попроси её у тренера.</div>
@@ -185,7 +184,7 @@ async function start(){
 
 $("saveKey").onclick = async () => {
   try {
-    const r = await api("setup", {key: $("key").value.trim()});
+    const r = await api("setup", {});
     token = r.token; store.set("token", token); history.replaceState(null, "", location.pathname + "?t=" + token); $("setup").hidden = true; start();
   } catch (e){ alert(e.message); }
 };
