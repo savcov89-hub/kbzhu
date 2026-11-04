@@ -82,7 +82,7 @@ async function handle(req) {
       content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: String(img.data) } });
     });
     if (images.length) {
-      content.push({ type: "text", text: "Посчитай еду на этих фото." });
+      content.push({ type: "text", text: "Посчитай еду на этих фото. Если на фото бутылка, банка или упаковка — считай весь её объём по этикетке, а не 100 мл или 100 г." });
       if (note) content.push({ type: "text", text: "Подпись: " + note });
     } else {
       content.push({ type: "text", text: "Фото нет, еда описана словами. Посчитай по описанию: если вес или объём не назван — бери типичную порцию и назови допущение.\nОписание: " + note });
