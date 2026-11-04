@@ -1,16 +1,19 @@
 // Сервер страницы foto/ (Netlify Edge Function: ожидание ответа модели не тратит лимит времени).
 // Считает через OpenRouter (Claude Sonnet; ключ в переменной OPENROUTER_API_KEY в Netlify), пускает по личным ссылкам,
-// считает еду по фото и хранит историю каждого человека.
+// считает еду по фото и хранит историю и замеры ладони каждого человека.
 import { getStore } from "@netlify/blobs";
-import { SYSTEM } from "../shared/system-prompt.js";
+import { buildSystem } from "../shared/system-prompt.js";
+import { cleanHand, handOf, HAND_FIELDS } from "../shared/hand.js";
 
 const DAILY_LIMIT = 40;      // расчётов на человека в день
+const MEASURE_LIMIT = 10;    // замеров ладони по фото на человека в день
 const MAX_PHOTOS = 20;
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
 
 const newToken = () => [...crypto.getRandomValues(new Uint8Array(18))].map(b => b.toString(16).padStart(2, "0")).join("");
+const dayKey = () => new Date().toISOString().slice(0, 10);
 
 async function handle(req) {
   const url = new URL(req.url);
@@ -19,10 +22,11 @@ async function handle(req) {
   const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
   const token = body.token || url.searchParams.get("t") || "";
   const users = (await store.get("users", { type: "json" })) || {};
+  const me = u => ({ name: u.name, owner: !!u.owner, hand: handOf(u), handSet: !!(u.hand || u.owner) });
 
-  // Первый запуск: владелец отдаёт ключ API, получает свою личную ссылку.
+  // Первый запуск: владелец получает свою личную ссылку.
   if (route === "status") {
-    return json({ configured: Object.values(users).some(u => u.owner), user: users[token] ? { name: users[token].name, owner: !!users[token].owner } : null });
+    return json({ configured: Object.values(users).some(u => u.owner), user: users[token] ? me(users[token]) : null });
   }
   if (route === "setup") {
     if (Object.values(users).some(u => u.owner)) return json({ error: "Сервер уже настроен" }, 409);
@@ -48,7 +52,7 @@ async function handle(req) {
 
   if (route === "people") {
     if (!user.owner) return json({ error: "Только тренер" }, 403);
-    return json({ people: Object.entries(users).filter(([, u]) => !u.owner).map(([t, u]) => ({ token: t, name: u.name })) });
+    return json({ people: Object.entries(users).filter(([, u]) => !u.owner).map(([t, u]) => ({ token: t, name: u.name, hand: u.hand || null })) });
   }
 
   if (route === "revoke") {
@@ -57,10 +61,60 @@ async function handle(req) {
     return json({ ok: true });
   }
 
+  // Замеры ладони: свои — любой; чужие (клиента) — только тренер.
+  if (route === "hand") {
+    const who = body.who && body.who !== token ? body.who : token;
+    if (who !== token && !user.owner) return json({ error: "Только тренер" }, 403);
+    const target = users[who];
+    if (!target) return json({ error: "Нет такого человека" }, 404);
+    const r = cleanHand(body.hand);
+    if (r.error) return json(r, 400);
+    target.hand = r.hand;
+    await store.setJSON("users", users);
+    return json({ hand: target.hand });
+  }
+
+  // Замер ладони по фото с банковской картой: модель возвращает сантиметры, человек проверяет и сохраняет.
+  if (route === "measure") {
+    const img = String(body.image || "");
+    if (!img) return json({ error: "Нет фото" }, 400);
+    const today = dayKey();
+    const m = user.measures && user.measures.day === today ? user.measures : { day: today, n: 0 };
+    if (m.n >= MEASURE_LIMIT) return json({ error: "На сегодня замеров по фото хватит, введи цифры вручную" }, 429);
+    user.measures = { day: today, n: m.n + 1 };
+    await store.setJSON("users", users);
+    const res = await callModel(MEASURE_SYSTEM, [
+      { type: "image_url", image_url: { url: "data:image/jpeg;base64," + img } },
+      { type: "text", text: "Измерь кисть на этом фото." }
+    ], 600, 0.1);
+    if (res.error) return json(res, 502);
+    const found = res.text.match(/\{[\s\S]*\}/);
+    let data = null;
+    try { data = found && JSON.parse(found[0]); } catch {}
+    if (!data) return json({ error: "Не получилось разобрать замер, попробуй ещё раз или введи вручную" }, 502);
+    if (data.ok === false) return json({ error: data.note || "На фото не видно кисть или карту целиком" }, 422);
+    const hand = {};
+    for (const f of HAND_FIELDS) {
+      const v = Number(data[f.id]);
+      if (Number.isFinite(v) && v >= f.min && v <= f.max) hand[f.id] = Math.round(v * 10) / 10;
+    }
+    if (!hand.Lh || !hand.Wp) return json({ error: "Не удалось точно измерить. Положи кисть и карту рядом, сними строго сверху" }, 422);
+    return json({ hand, note: String(data.note || "").slice(0, 200) });
+  }
+
+  // Дневник клиента для тренера (только чтение).
+  if (route === "client") {
+    if (!user.owner) return json({ error: "Только тренер" }, 403);
+    const c = users[body.who];
+    if (!c || c.owner) return json({ error: "Нет такого клиента" }, 404);
+    const h = (await store.get("history/" + body.who, { type: "json" })) || [];
+    return json({ name: c.name, hand: c.hand || null, history: h.slice(0, 200) });
+  }
+
   const histKey = "history/" + token;
   const history = (await store.get(histKey, { type: "json" })) || [];
 
-  if (route === "history") return json({ name: user.name, owner: !!user.owner, history });
+  if (route === "history") return json({ ...me(user), history });
 
   if (route === "delete") {
     const left = history.filter(h => h.at !== body.at);
@@ -87,17 +141,19 @@ async function handle(req) {
     } else {
       content.push({ type: "text", text: "Фото нет, еда описана словами. Посчитай по описанию: если вес или объём не назван — бери типичную порцию и назови допущение.\nОписание: " + note });
     }
-    const res = await askModel(content);
+    const res = await askModel(content, user);
     if (res.error) return json(res, 502);
     // День записи: время съёмки с телефона (до 14 дней назад), иначе сейчас.
     const now = Date.now();
     let at = Number(body.at);
     if (!(at > now - 14 * 864e5 && at <= now + 3e5)) at = now;
-    while (history.some(h => h.at === at)) at++;
+    // Пока модель думала, могла прийти другая запись: перечитываем историю прямо перед сохранением.
+    const fresh = (await store.get(histKey, { type: "json" })) || [];
+    while (fresh.some(h => h.at === at)) at++;
     const entry = { at, created: now, n: images.length, ...(note ? { note } : {}), ...res };
-    history.unshift(entry);
-    history.sort((a, b) => b.at - a.at);
-    await store.setJSON(histKey, history.slice(0, 500));
+    fresh.unshift(entry);
+    fresh.sort((a, b) => b.at - a.at);
+    await store.setJSON(histKey, fresh.slice(0, 500));
     return json({ entry });
   }
 
@@ -109,11 +165,14 @@ async function handle(req) {
     const res = await askModel([{ type: "text", text:
       "Прошлый расчёт по фото (фото уже нет, есть только этот текст):\n" + e.text +
       (e.note ? "\nПодпись к фото была: " + e.note : "") +
-      "\n\nПоправка: " + note + "\nПересчитай." }]);
+      "\n\nПоправка: " + note + "\nПересчитай." }], user);
     if (res.error) return json(res, 502);
-    Object.assign(e, res, { fixes: [...(e.fixes || []), note] });
-    await store.setJSON(histKey, history);
-    return json({ entry: e });
+    const fresh = (await store.get(histKey, { type: "json" })) || [];
+    const f = fresh.find(h => h.at === body.at);
+    if (!f) return json({ error: "Расчёт уже удалён" }, 404);
+    Object.assign(f, res, { fixes: [...(f.fixes || []), note] });
+    await store.setJSON(histKey, fresh);
+    return json({ entry: f });
   }
 
   return json({ error: "Неизвестный запрос" }, 404);
@@ -126,16 +185,25 @@ const MODELS = () => (Netlify.env.get("OPENROUTER_MODEL") || "anthropic/claude-s
 const apiKey = () => Netlify.env.get("OPENROUTER_API_KEY") || "";
 // Веб-поиск OpenRouter платный отдельно: включается переменной OPENROUTER_SEARCH=1.
 const useSearch = () => Netlify.env.get("OPENROUTER_SEARCH") === "1";
-const SYSTEM_NO_SEARCH = SYSTEM.replace(/ПОИСК В ИНТЕРНЕТЕ\n[^\n]*\n\n/, "");
 
-async function askModel(content) {
+const MEASURE_SYSTEM = `Ты измеряешь кисть руки по фото. На фото кисть лежит на ровной поверхности, рядом эталон: банковская карта (8,56 × 5,40 см) или линейка/рулетка. Карта и кисть должны быть в одной плоскости; учти перспективу: если карта или кисть сняты под углом, поправь по форме карты (она прямоугольная).
+Измерь в сантиметрах с одной десятичной:
+Lh — длина кисти: от дистальной складки запястья до кончика среднего пальца;
+Wp — ширина ладони по костяшкам (головки 2–5 пястных костей), без большого пальца;
+Lp — длина ладони: от складки запястья до складки у основания среднего пальца;
+Lm — длина среднего пальца: от складки у основания до кончика;
+Wi — ширина указательного пальца у среднего сустава;
+Wt — ширина большого пальца по ногтю;
+Lt — длина ногтевой фаланги большого пальца: от сгиба до кончика.
+Если какой-то замер не видно — null. Если нет эталона, кисть не целиком в кадре или снято сильно сбоку — ok=false и коротко причина в note.
+Ответь строго одним JSON без пояснений и без markdown:
+{"ok":true,"Lh":17.0,"Wp":8.4,"Lp":9.5,"Lm":7.5,"Wi":1.8,"Wt":2.0,"Lt":3.5,"note":"что мешало точности, коротко по-русски"}`;
+
+async function callModel(system, parts, maxTokens, temperature) {
   const key = apiKey();
   if (!key) return { error: "На сервере нет ключа OpenRouter (переменная OPENROUTER_API_KEY в Netlify)" };
-  const parts = content.map(c => c.type === "image"
-    ? { type: "image_url", image_url: { url: "data:" + c.source.media_type + ";base64," + c.source.data } }
-    : { type: "text", text: c.text });
-  const search = useSearch();
   const models = MODELS();
+  const search = useSearch() && maxTokens > 1000;
   const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -147,13 +215,10 @@ async function askModel(content) {
     body: JSON.stringify({
       model: models[0],
       ...(models.length > 1 ? { models } : {}),
-      messages: [
-        { role: "system", content: search ? SYSTEM : SYSTEM_NO_SEARCH },
-        { role: "user", content: parts }
-      ],
+      messages: [{ role: "system", content: system }, { role: "user", content: parts }],
       ...(search ? { plugins: [{ id: "web", max_results: 3 }] } : {}),
-      max_tokens: 4096,
-      temperature: 0.4
+      max_tokens: maxTokens,
+      temperature
     })
   });
   const data = await r.json().catch(() => ({}));
@@ -169,6 +234,17 @@ async function askModel(content) {
   if (Array.isArray(raw)) raw = raw.map(p => p.text || "").join("");
   raw = String(raw || "").trim();
   if (!raw) return { error: "Пустой ответ модели, попробуй ещё раз" };
+  return { text: raw };
+}
+
+async function askModel(content, user) {
+  const parts = content.map(c => c.type === "image"
+    ? { type: "image_url", image_url: { url: "data:" + c.source.media_type + ";base64," + c.source.data } }
+    : { type: "text", text: c.text });
+  const system = buildSystem({ name: user.name, owner: !!user.owner, hand: handOf(user), search: useSearch() });
+  const res = await callModel(system, parts, 4096, 0.4);
+  if (res.error) return res;
+  const raw = res.text;
   const m = raw.match(/#ИТОГ\s+ккал=(\d+)\s+б=(\d+)\s+ж=(\d+)\s+у=(\d+)/);
   return {
     text: raw.replace(/\n?#ИТОГ[^\n]*/g, "").trim(),

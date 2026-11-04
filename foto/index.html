@@ -4,147 +4,750 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Посчитать">
-<meta name="theme-color" content="#16a34a">
+<meta name="theme-color" content="#f4f6f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1210" media="(prefers-color-scheme: dark)">
 <!-- без manifest: iPhone кладёт на экран «Домой» текущий адрес вместе с личной ссылкой ?t= -->
 <link rel="apple-touch-icon" href="icon-180.png?v=2">
 <title>Посчитать</title>
 <style>
-:root{--bg:#f6f7f5;--card:#fff;--text:#1c1f1d;--muted:#6b726e;--accent:#16a34a;--border:#e2e5e2}
-@media (prefers-color-scheme:dark){:root{--bg:#101211;--card:#1a1d1b;--text:#eef1ee;--muted:#9aa29d;--border:#2b302d}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,system-ui,sans-serif;padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 16px)}
-h1{font-size:22px;margin:20px 0 12px}
-.btn{display:block;width:100%;padding:18px;border:0;border-radius:14px;background:var(--accent);color:#fff;font-size:19px;font-weight:600;text-align:center}
-.btn:disabled{opacity:.5}
-.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-top:14px;white-space:pre-wrap}
-.muted{color:var(--muted);font-size:13px}
-.thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.thumbs img{width:54px;height:54px;object-fit:cover;border-radius:8px}
-input[type=password],input[type=text]{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:16px}
-details{margin-top:24px}
-.sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;padding:calc(env(safe-area-inset-top) + 12px) 12px 12px}
-.sheet[hidden]{display:none}
-.sheetbox{background:var(--bg);border-radius:16px;padding:14px 16px 18px;width:100%;max-height:100%;overflow:auto}
-.sheetbox details{margin-top:14px}
-.menubtn{position:absolute;top:10px;right:10px;width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;padding:0}
-summary{color:var(--muted)}
-#today{position:sticky;padding-right:56px;top:env(safe-area-inset-top);z-index:4;margin-top:0;box-shadow:0 0 0 10px var(--bg),0 6px 14px rgba(0,0,0,.06)}
-.today-k{font-size:28px;font-weight:700}
-.today-m{color:var(--muted);margin-top:2px}
-.small{background:none;border:0;color:var(--muted);text-decoration:underline;padding:8px 0;font-size:14px}
-.meal>summary{display:flex;align-items:center;gap:6px;color:var(--text);padding:6px 0}
-.meal>summary{list-style:none}
-.meal>summary::-webkit-details-marker{display:none}
-.meal>summary::before{content:"›";color:var(--muted);font-size:20px;width:12px;transition:transform .15s}
-.meal[open]>summary::before{transform:rotate(90deg)}
-.meal>summary .t{color:var(--muted);flex:none}
-.meal>summary .nm{flex:1;min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25}
-.meal>summary .kc{flex:none;font-weight:600}
-summary .delx{flex:none;margin:-6px -6px -6px 0;padding:6px 10px;border:0;background:none;font-size:18px;line-height:1}
-.dock{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--card);border-top:3px solid var(--accent);border-radius:18px 18px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.08);padding:10px 12px calc(env(safe-area-inset-bottom) + 22px)}
-.dock textarea{flex:1;min-width:0;min-height:44px;max-height:120px;padding:10px 14px;border-radius:22px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-family:inherit;resize:none;display:block}
-.dock .pend{display:flex;gap:10px;overflow-x:auto;margin-bottom:8px;padding:6px 6px 0 0}
-.dock .pend:empty{display:none}
-.dock .pend div{position:relative;flex:none}
-.dock .pend img{width:56px;height:56px;object-fit:cover;border-radius:10px;display:block}
-.dock .pend button{position:absolute;top:-4px;right:-4px;width:22px;height:22px;border-radius:50%;border:0;background:#1c1f1d;color:#fff;font-size:12px;padding:0}
+:root{
+  --bg:#f4f6f3;--card:#fff;--text:#17201a;--muted:#68716b;--faint:#a0a8a2;--border:#e1e6e1;
+  --accent:#16a34a;--accent-d:#15803d;--soft:#e6f5ec;--danger:#dc2626;--danger-soft:#fdeeee;--hand:#eef1ee;
+  --p:#2563eb;--f:#d97706;--c:#9333ea;
+  --shadow:0 1px 2px rgba(16,24,20,.05),0 8px 24px rgba(16,24,20,.07);
+  --ease:cubic-bezier(.2,.85,.25,1);
+  --kb:0px;--vv-h:100vh;--vv-top:0px;--dock-h:80px;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1210;--card:#181d1a;--text:#ecf1ed;--muted:#9aa39d;--faint:#69716c;--border:#28302a;
+  --soft:#12301f;--danger-soft:#3a1818;--hand:#232a25;--p:#60a5fa;--f:#fbbf24;--c:#c084fc;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35)}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+html.locked,html.locked body{overflow:hidden}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;padding:env(safe-area-inset-top) 16px 120px}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--accent-d)}
+.wrap{max-width:560px;margin:0 auto}
+h1{font-size:21px;margin:12px 2px 10px;letter-spacing:-.01em;font-weight:750}
+h3{font-size:17px;margin:22px 0 4px}
+.muted{color:var(--muted);font-size:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border:0;border-radius:14px;background:var(--accent);color:#fff;font-size:17px;font-weight:650;transition:transform .12s,opacity .2s}
+.btn:active{transform:scale(.98)}
+.btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.btn.sm{width:auto;padding:12px 16px;font-size:16px;flex:none}
+.btn:disabled{opacity:.55}
+.btn .spin,.row .spin{width:18px;height:18px;border:2.5px solid currentColor;border-right-color:transparent;border-radius:50%;animation:rot .8s linear infinite;flex:none}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* итог дня */
+.today{position:sticky;top:env(safe-area-inset-top);z-index:6;display:grid;grid-template-columns:1fr auto;gap:0 10px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px 12px 12px 16px;box-shadow:0 0 0 10px var(--bg),var(--shadow);transition:padding .25s var(--ease)}
+.t-main{min-width:0}
+.t-date{color:var(--muted);font-size:13px;max-height:20px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;transition:max-height .25s var(--ease),opacity .2s}
+.t-k{font-size:32px;font-weight:780;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums;transition:font-size .25s var(--ease)}
+.t-k small{font-size:16px;font-weight:600;color:var(--muted);letter-spacing:0}
+.macros{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;transition:margin .25s var(--ease)}
+.today .t-main{grid-area:1/1}
+.today .t-btns{grid-area:1/2}
+.today .macros{grid-area:2/1/3/-1}
+.today .banner{grid-row:3}
+.today.compact .macros{grid-column:1}
+.today.compact .t-btns{grid-row:1/span 2;align-items:center}
+.mc{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:var(--bg);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mc i{width:8px;height:8px;border-radius:50%}
+.mc.p i{background:var(--p)}.mc.f i{background:var(--f)}.mc.c i{background:var(--c)}
+.t-btns{display:flex;gap:8px;align-items:flex-start}
+.ib{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--bg);display:grid;place-items:center;padding:0;color:var(--text);transition:transform .15s}
+.ib:active{transform:scale(.9)}
+.today.compact{padding-top:9px;padding-bottom:9px}
+.today.compact .t-date{max-height:0;opacity:0}
+.today.compact .t-k{font-size:22px}
+.today.compact .macros{margin-top:3px}
+.today.compact .banner{display:none}
+.banner{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin-top:12px;padding:11px 12px;border-radius:12px;border:0;background:var(--soft);color:var(--accent-d);font-weight:600;font-size:15px;text-align:left}
+.banner span:last-child{margin-left:auto}
+@media (prefers-color-scheme:dark){.banner{color:#86efac}}
+
+/* история */
+.day{display:flex;justify-content:space-between;align-items:baseline;margin:22px 6px 4px;color:var(--muted);font-size:13px;font-weight:650}
+.more{display:block;margin:16px auto 0;border:1px solid var(--border);background:var(--card);border-radius:999px;padding:8px 16px;color:var(--muted);font-size:14px}
+.meal{background:var(--card);border:1px solid var(--border);border-radius:16px;margin-top:8px;overflow:hidden;transition:box-shadow .25s,border-color .25s}
+.meal.open{box-shadow:var(--shadow)}
+.meal.flash{animation:flash 1.6s var(--ease)}
+@keyframes flash{0%{border-color:var(--accent);box-shadow:0 0 0 4px var(--soft)}100%{}}
+.row{display:flex;align-items:center;gap:8px;padding:6px 4px 6px 10px;min-height:54px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.row:active{background:var(--bg)}
+.chev{flex:none;width:14px;height:14px;color:var(--faint);transition:transform .25s var(--ease)}
+.meal.open .chev{transform:rotate(90deg)}
+.row .t{flex:none;color:var(--muted);font-size:15px;font-variant-numeric:tabular-nums}
+.row .nm{flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.25}
+.row .kc{flex:none;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.row .kc small{font-weight:500;color:var(--muted);font-size:12px}
+.del{flex:none;width:42px;height:42px;border:0;background:none;border-radius:50%;display:grid;place-items:center;color:var(--faint);padding:0}
+.del:active{background:var(--danger-soft);color:var(--danger)}
+.meal.busy .row{opacity:.6}
+.meal.ro .row{padding-right:14px}
+.mbody{overflow:hidden}
+.mbody-in{padding:0 14px 14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.txt{white-space:pre-wrap;font-size:15px;line-height:1.5;background:var(--bg);border-radius:12px;padding:12px;margin-top:10px;overflow-wrap:anywhere}
+.cap{font-size:14px;color:var(--muted);margin-top:10px}
+.acts{display:flex;gap:8px;margin-top:10px}
+.act{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 10px;border-radius:12px;border:1px solid var(--border);background:var(--card);font-size:15px;font-weight:600}
+.act:active{transform:scale(.98)}
+.act.danger{color:var(--danger)}
+.empty{margin-top:18px;text-align:center;padding:26px 18px}
+.empty .big{font-size:42px}
+.empty b{display:block;font-size:18px;margin:6px 0 4px}
+
+/* расчёты в работе */
+.job{background:var(--card);border:1.5px dashed var(--border);border-radius:16px;margin-top:8px;padding:12px;display:flex;gap:12px;align-items:center;animation:pop .35s var(--ease)}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}}
+.job .th{display:flex;flex:none}
+.job .th img{width:42px;height:42px;border-radius:10px;object-fit:cover;border:2px solid var(--card);margin-right:-14px}
+.job .th img:last-child{margin-right:0}
+.job .th .tx{width:42px;height:42px;border-radius:10px;background:var(--bg);display:grid;place-items:center;font-size:20px}
+.job .jt{flex:1;min-width:0}
+.job .jn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.job .js{color:var(--muted);font-size:14px}
+.prog{height:4px;border-radius:2px;background:var(--bg);overflow:hidden;margin-top:8px}
+.prog i{display:block;height:100%;width:35%;background:var(--accent);border-radius:2px;animation:slide 1.3s ease-in-out infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(290%)}}
+.job.err{border-style:solid;border-color:rgba(220,38,38,.35);background:var(--danger-soft);flex-wrap:wrap}
+.job.err .js{color:var(--danger)}
+.job .jacts{display:flex;gap:8px;width:100%}
+.job .jacts button{flex:1;padding:10px;border-radius:11px;border:1px solid var(--border);background:var(--card);font-weight:600;font-size:15px}
+
+/* нижняя строка ввода */
+.dock{position:fixed;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;z-index:8;background:var(--card);border-top:3px solid var(--accent);border-radius:20px 20px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.08);padding:10px 12px calc(env(safe-area-inset-bottom) + 14px);transform:translateY(calc(-1 * var(--kb)));transition:transform .12s}
+body.kb .dock{padding-bottom:10px}
+.dock textarea{flex:1;min-width:0;min-height:44px;max-height:132px;padding:10px 14px;border-radius:22px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-family:inherit;line-height:1.4;resize:none;display:block;transition:border-color .15s}
 .dock textarea:focus{outline:none;border-color:var(--accent)}
-.bar{display:flex;gap:6px;align-items:flex-end}
-.rb{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;padding:0}
+.pend{display:flex;gap:10px;overflow-x:auto;margin-bottom:8px;padding:6px 6px 2px 0}
+.pend:empty{display:none}
+.pend div{position:relative;flex:none;animation:pop .3s var(--ease)}
+.pend img{width:58px;height:58px;object-fit:cover;border-radius:12px;display:block}
+.pend button{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:2px solid var(--card);background:#17201a;color:#fff;font-size:11px;padding:0;display:grid;place-items:center}
+.inbar{display:flex;gap:6px;align-items:flex-end}
+.rb{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:none;color:var(--muted);display:grid;place-items:center;padding:0;transition:transform .15s,background .15s}
+.rb:active{transform:scale(.9)}
+.rb svg{transition:transform .25s var(--ease)}
 .rb.plus{background:var(--bg);border:1px solid var(--border);color:var(--text)}
 .rb.plus.open svg{transform:rotate(45deg)}
-.rb.on{background:#dc2626;color:#fff}
+.rb.on{background:var(--danger);color:#fff;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 7px rgba(220,38,38,.18)}}
 .rb.go{background:var(--accent);color:#fff}
 .rb.go:disabled{background:var(--border);color:var(--muted)}
-.menu{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:8px;overflow:hidden}
-.mi{display:flex;align-items:center;gap:12px;padding:13px 14px;font-size:16px;border-bottom:1px solid var(--border)}
-.mi:last-child{border-bottom:0}
-.mi span{font-size:20px;width:24px;text-align:center}
-.mi select{margin-left:auto;font-size:15px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px 6px}
-.dock{transition:transform .12s}
-.dock.kb{padding-bottom:10px}
-.reply{display:flex;align-items:center;gap:8px;margin:0 2px 8px;padding:6px 6px 6px 10px;border-left:3px solid var(--accent);background:var(--bg);border-radius:8px;font-size:14px}
+.pmenu{overflow:hidden}
+.pmenu-in{background:var(--bg);border:1px solid var(--border);border-radius:16px;margin-bottom:8px;overflow:hidden}
+.mi{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;font-size:16px;border:0;border-bottom:1px solid var(--border);background:none;text-align:left}
+.mi:active{background:var(--card)}
+.mi .em{font-size:20px;width:24px;text-align:center}
+.mi small{display:block;color:var(--muted);font-size:13px}
+.days{display:flex;gap:6px;padding:10px 12px 12px;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.days .lb{flex:0 0 100%;color:var(--muted);font-size:13px;margin:0 2px 2px}
+.chip{flex:1 1 auto;padding:7px 6px;border-radius:999px;border:1px solid var(--border);background:var(--card);font-size:14px;text-align:center;white-space:nowrap}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.reply{display:flex;align-items:center;gap:8px;margin:0 2px 8px;padding:6px 6px 6px 10px;border-left:3px solid var(--accent);background:var(--bg);border-radius:8px;font-size:14px;animation:pop .25s var(--ease)}
 .reply[hidden]{display:none}
 .reply .rt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.reply button{flex:none;width:32px;height:32px;border:0;background:none;color:var(--muted);font-size:16px;padding:0}
-.dock.fixing .rb.plus,.dock.fixing .pend,.dock.fixing .menu{display:none}
+.reply button{flex:none;width:32px;height:32px;border:0;background:none;color:var(--muted);padding:0;display:grid;place-items:center}
+.dhint{margin:6px 6px 0;font-size:13px;color:var(--accent-d)}
+.dhint:empty{display:none}
+.dock.fixing .rb.plus,.dock.fixing .pend,.dock.fixing .pmenu{display:none}
+
+/* шторки */
+.sheet{position:fixed;left:0;right:0;top:var(--vv-top);height:var(--vv-h);z-index:40;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.sheet[hidden]{display:none}
+.sheet-bd{position:absolute;inset:0;background:rgba(10,14,12,.42);opacity:0;transition:opacity .3s}
+.sheet.show .sheet-bd{opacity:1}
+.sheet-panel{position:relative;width:100%;max-width:560px;max-height:calc(100% - max(env(safe-area-inset-top),10px) - 10px);background:var(--bg);border-radius:22px 22px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.18);display:flex;flex-direction:column;transform:translateY(105%);transition:transform .34s var(--ease);will-change:transform}
+.sheet.show .sheet-panel{transform:none}
+.sheet.tall .sheet-panel{height:calc(100% - max(env(safe-area-inset-top),10px) - 10px)}
+.sheet-grab{flex:none;height:22px;display:grid;place-items:center;touch-action:none}
+.sheet-grab::before{content:"";width:40px;height:5px;border-radius:3px;background:var(--faint);opacity:.6}
+.sheet-head{flex:none;display:flex;align-items:center;gap:10px;padding:0 12px 8px 18px;touch-action:none}
+.sheet-head h2{flex:1;margin:0;font-size:20px;letter-spacing:-.01em}
+.sheet-body{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 16px 18px}
+.sheet-foot{flex:none;padding:10px 16px calc(env(safe-area-inset-bottom) + 12px);border-top:1px solid var(--border);background:var(--bg)}
+body.kb .sheet-foot,body.kb .sheet-body.nofoot{padding-bottom:10px}
+.sheet-body.nofoot{padding-bottom:calc(env(safe-area-inset-bottom) + 18px)}
+
+/* списки в шторках */
+.li{display:flex;align-items:center;gap:12px;width:100%;padding:13px 12px 13px 14px;background:var(--card);border:1px solid var(--border);border-radius:16px;margin-top:10px;text-align:left}
+.li:active{transform:scale(.99)}
+.li .em{font-size:22px;width:28px;text-align:center;flex:none}
+.li .lt{flex:1;min-width:0}
+.li b{display:block;font-weight:650}
+.li small{display:block;color:var(--muted);font-size:13px;margin-top:1px}
+.li .chev{transform:none}
+.addrow{display:flex;gap:8px;margin-top:10px}
+.tin{flex:1;min-width:0;padding:13px 14px;border-radius:14px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:16px;font-family:inherit}
+.tin:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--soft)}
+.cl{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px 14px;margin-top:10px;animation:pop .3s var(--ease)}
+.cl-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.cl-top b{font-size:17px}
+.cl-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.pill{padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg);font-size:14px;font-weight:600}
+.pill.danger{color:var(--danger)}
+.pill.sure{background:var(--danger);border-color:var(--danger);color:#fff}
+.linkbox{word-break:break-all;font-size:14px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin:8px 0;user-select:all;-webkit-user-select:all}
+
+/* раскрывашки */
+.acc{background:var(--card);border:1px solid var(--border);border-radius:16px;margin-top:10px;overflow:hidden}
+.acc-h{display:flex;align-items:center;gap:10px;width:100%;padding:14px;background:none;border:0;text-align:left;font-weight:650;font-size:16px}
+.acc-h .em{font-size:20px;width:26px;text-align:center;flex:none}
+.acc-h .chev{margin-left:auto}
+.acc.open>.acc-h .chev{transform:rotate(90deg)}
+.acc-b{overflow:hidden}
+.acc-in{padding:0 14px 16px;font-size:15px;line-height:1.5}
+.acc-in p{margin:8px 0}
+.acc-in ul{margin:8px 0;padding-left:20px}
+.acc-in li{margin:5px 0}
+.steps{counter-reset:s;list-style:none;padding:0!important;margin:6px 0}
+.steps>li{position:relative;padding-left:36px;margin:12px 0!important}
+.steps>li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:25px;height:25px;border-radius:50%;background:var(--soft);color:var(--accent-d);font-weight:750;font-size:13px;display:grid;place-items:center}
+@media (prefers-color-scheme:dark){.steps>li::before{color:#86efac}}
+.src li{font-size:14px;color:var(--muted)}
+.src li b{color:var(--text);font-weight:600}
+.figs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px}
+.figs figure{margin:0;background:var(--bg);border-radius:12px;padding:8px 6px 6px;text-align:center}
+.figs figcaption{font-size:12px;color:var(--muted);margin-top:2px}
+.figs svg{width:100%;height:auto;display:block}
+.note{background:var(--soft);border-radius:12px;padding:10px 12px;margin:10px 0;font-size:14px}
+
+/* замеры ладони */
+.hand-fig{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:8px;margin-top:4px}
+.hand-fig svg{width:100%;max-width:300px;height:auto;display:block;margin:0 auto}
+#sHand .hand-fig svg{max-width:230px}
+.field{margin-top:14px}
+.field>label{display:flex;align-items:center;gap:8px;font-weight:650;font-size:15px}
+.num{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;color:#fff;font-size:12px;font-weight:750;flex:none}
+.field .hint{color:var(--muted);font-size:13px;margin:1px 0 6px 30px}
+.inp{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:13px;background:var(--card);padding:0 14px;margin-left:30px;transition:border-color .15s,box-shadow .15s}
+.inp input{flex:1;min-width:0;border:0;background:none;padding:12px 0;font-size:17px;color:var(--text);outline:none;font-variant-numeric:tabular-nums;font-family:inherit}
+.inp span{color:var(--muted)}
+.inp:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--soft)}
+.field.bad .inp{border-color:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
+.field .err{color:var(--danger);font-size:13px;margin:4px 0 0 30px}
+.field .err:empty{display:none}
+.field.new .inp{animation:glow 1.6s var(--ease)}
+@keyframes glow{0%{box-shadow:0 0 0 4px var(--soft);border-color:var(--accent)}}
+.measure{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border-radius:14px;border:1.5px dashed var(--accent);background:var(--soft);color:var(--accent-d);font-weight:650;font-size:16px;margin-top:12px}
+@media (prefers-color-scheme:dark){.measure{color:#86efac}}
+.measure.busy{opacity:.7;pointer-events:none}
+.tip{font-size:13px;color:var(--muted);margin:6px 2px 0}
+
+/* всплывашка */
+.toast{position:fixed;left:50%;bottom:calc(var(--dock-h) + var(--kb) + 12px);z-index:70;transform:translate(-50%,16px);opacity:0;background:#17201a;color:#fff;border-radius:14px;padding:12px 14px;display:flex;gap:14px;align-items:center;max-width:calc(100% - 32px);width:max-content;box-shadow:0 10px 30px rgba(0,0,0,.25);transition:transform .28s var(--ease),opacity .2s;pointer-events:none;font-size:15px}
+body.sheet-open .toast{bottom:calc(var(--kb) + 96px)}
+.toast.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+.toast button{border:0;background:none;color:#4ade80;font-weight:750;padding:4px 2px;flex:none}
+@media (prefers-color-scheme:dark){.toast{background:#eef2ef;color:#17201a}.toast button{color:#15803d}}
+@media (max-width:360px){body{padding-left:12px;padding-right:12px}.t-k{font-size:28px}.mc{padding:3px 8px;font-size:13px}.row{gap:6px}.row .t{font-size:14px}.row .kc small{display:none}.ib{width:36px;height:36px}.chip{font-size:13px}}
+@media (max-width:340px){.today.compact .macros{display:none}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
+<div class="wrap">
 <h1 id="title">Посчитать еду</h1>
 
-<div id="setup" hidden>
-  <p>Первый запуск. Ключ OpenRouter добавляется в настройках Netlify (переменная OPENROUTER_API_KEY). Потом нажми кнопку — получишь личную ссылку.</p>
-  <button class="btn" id="saveKey" style="margin-top:10px">Начать</button>
+<div id="setup" class="card" hidden>
+  <p style="margin-top:0">Первый запуск. Ключ OpenRouter добавляется в настройках Netlify (переменная OPENROUTER_API_KEY). Потом нажми кнопку — получишь личную ссылку.</p>
+  <button class="btn" id="saveKey">Начать</button>
 </div>
 
-<div id="noaccess" class="card" hidden>Нужна личная ссылка. Попроси её у тренера.</div>
+<div id="noaccess" class="card empty" hidden><div class="big">🔒</div><b>Нужна личная ссылка</b><div class="muted">Попроси её у тренера и открой с телефона.</div></div>
 
 <div id="main" hidden>
-  <div class="dock" id="dock">
-    <div class="reply" id="reply" hidden><div class="rt">✏️ Исправляю: <b id="replyName"></b></div><button id="replyX" aria-label="Не исправлять">✕</button></div>
-    <div class="pend" id="pend"></div>
-    <div class="menu" id="menu" hidden>
-      <label class="mi" id="pick"><span>🖼</span>Фото из галереи<input id="file" type="file" accept="image/*" multiple hidden></label>
-      <label class="mi" id="shoot"><span>📷</span>Снять камерой<input id="cam" type="file" accept="image/*" capture="environment" hidden></label>
-      <label class="mi"><span>📅</span>День<select id="day" aria-label="День">
-        <option value="auto">авто</option><option value="0">сегодня</option><option value="1">вчера</option><option value="2">позавчера</option>
-      </select></label>
+  <section class="today" id="today">
+    <div class="t-main">
+      <div class="t-date" id="tDate"></div>
+      <div class="t-k"><span id="tK">0</span> <small>ккал</small></div>
     </div>
-    <div class="bar">
+    <div class="t-btns">
+      <button class="ib" id="helpBtn" aria-label="Как фоткать и мерить"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.4-2.7 4"/><path d="M12 17.6h.01"/></svg></button>
+      <button class="ib" id="menuBtn" aria-label="Меню: ладонь, клиенты, ссылка"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></button>
+    </div>
+    <div class="macros" id="tM"></div>
+    <button class="banner" id="handBanner" hidden><span>📏</span><span>Замерь ладонь — будет точнее</span><span>›</span></button>
+  </section>
+  <div id="hist"></div>
+  <div id="jobs"></div>
+
+  <div class="dock" id="dock">
+    <div class="reply" id="reply" hidden><div class="rt">✏️ Исправляю: <b id="replyName"></b></div><button id="replyX" aria-label="Не исправлять"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="pend" id="pend"></div>
+    <div class="pmenu" id="pmenu" hidden><div class="pmenu-in">
+      <label class="mi"><span class="em">📷</span><span>Снять камерой</span><input id="cam" type="file" accept="image/*" capture="environment" hidden></label>
+      <label class="mi"><span class="em">🖼</span><span>Фото из галереи<small>можно несколько сразу</small></span><input id="file" type="file" accept="image/*" multiple hidden></label>
+      <div class="days" id="days"></div>
+      <button class="mi" id="pHelp" style="border-bottom:0"><span class="em">💡</span><span>Как фоткать, чтобы считало точно</span></button>
+    </div></div>
+    <div class="inbar">
       <button class="rb plus" id="plus" aria-label="Добавить фото"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-      <textarea id="note" rows="1" placeholder="Что съел?"></textarea>
+      <textarea id="note" rows="1" placeholder="Что съел?" enterkeyhint="send"></textarea>
       <button class="rb" id="noteMic" aria-label="Сказать голосом"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/></svg></button>
       <button class="rb go" id="send" disabled aria-label="Посчитать"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
     </div>
-    <div class="muted" id="sendHint" style="margin:6px 4px 0"></div>
-  </div>
-  </div>
-  <div id="today" class="card" style="white-space:normal"></div>
-  <div id="hist"></div>
-  <div id="status" class="muted" style="margin-top:10px"></div>
-  <div id="thumbs" class="thumbs"></div>
-  <div id="out"></div>
-
-  <div class="sheet" id="sheet" hidden>
-  <div class="sheetbox">
-  <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:19px">Меню</b><button class="small" id="sheetClose" style="font-size:16px;text-decoration:none">Закрыть ✕</button></div>
-  <details id="clients" hidden>
-    <summary>Клиенты</summary>
-    <p class="muted">Свою ссылку клиентам не отправляй. Впиши имя клиента и нажми «Добавить клиента» — откроется «Поделиться», выбери Telegram или WhatsApp и отправь. У клиента будет своя ссылка и своя история.</p>
-    <input id="cname" type="text" placeholder="Имя клиента">
-    <button class="btn" id="addClient" style="margin-top:10px;font-size:17px;padding:14px">Добавить клиента</button>
-    <div id="clientList"></div>
-  </details>
-  <details>
-    <summary>Моя ссылка</summary>
-    <p class="muted">Открой эту ссылку в любом браузере или на другом телефоне — будет та же история. Никому не отправляй, даже клиентам: для них есть «Клиенты» выше.</p>
-    <div class="card" id="myLink" style="word-break:break-all"></div>
-  </details>
-  </div>
+    <div class="dhint" id="dhint"></div>
   </div>
 </div>
+</div>
+
+<!-- Меню -->
+<div class="sheet" id="sMenu" hidden role="dialog" aria-modal="true" aria-labelledby="sMenuT">
+  <div class="sheet-bd"></div>
+  <div class="sheet-panel">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head"><h2 id="sMenuT">Меню</h2><button class="ib x" aria-label="Закрыть">✕</button></div>
+    <div class="sheet-body nofoot">
+      <button class="li" id="mHand"><span class="em">📏</span><span class="lt"><b>Моя ладонь</b><small id="mHandSum"></small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="li" id="mHelp"><span class="em">📖</span><span class="lt"><b>Как фоткать и мерить</b><small>Инструкция и исследования</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <div id="clientsBox" hidden>
+        <h3>Клиенты</h3>
+        <div class="muted">Впиши имя и нажми «Добавить» — откроется «Поделиться», отправь ссылку в Telegram или WhatsApp. У клиента своя история и свои замеры ладони. Свою ссылку клиентам не отправляй.</div>
+        <div class="addrow"><input id="cname" class="tin" type="text" placeholder="Имя клиента" autocomplete="off" enterkeyhint="done"><button class="btn sm" id="addClient">Добавить</button></div>
+        <div id="clientList"></div>
+      </div>
+      <div class="acc" style="margin-top:22px">
+        <button class="acc-h"><span class="em">🔗</span>Моя ссылка<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b" hidden><div class="acc-in">
+          <div class="muted">Открой её в любом браузере или на другом телефоне — будет та же история. Никому не отправляй.</div>
+          <div class="linkbox" id="myLink"></div>
+          <button class="btn ghost" id="copyMy">Скопировать</button>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Как фоткать и мерить -->
+<div class="sheet tall" id="sHelp" hidden role="dialog" aria-modal="true" aria-labelledby="sHelpT">
+  <div class="sheet-bd"></div>
+  <div class="sheet-panel">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head"><h2 id="sHelpT">Как считать точно</h2><button class="ib x" aria-label="Закрыть">✕</button></div>
+    <div class="sheet-body nofoot">
+      <div class="muted" style="margin:0 2px 4px">Главное: эталон размера в кадре, высота еды видна, а что не видно — в подписи.</div>
+
+      <div class="acc open" data-open>
+        <button class="acc-h"><span class="em">📸</span>Как фоткать еду<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b"><div class="acc-in">
+          <div class="figs">
+            <figure><svg viewBox="0 0 150 110" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="57" y="6" width="36" height="10" rx="3" fill="var(--text)"/>
+              <path d="M66 18L34 88M84 18l34 70" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 4"/>
+              <path d="M8 96h134" stroke="var(--faint)" stroke-width="2"/>
+              <ellipse cx="62" cy="93" rx="36" ry="4" fill="var(--card)" stroke="var(--muted)" stroke-width="1.6"/>
+              <path d="M40 91c4-14 40-14 44 0" fill="var(--f)" opacity=".75"/>
+              <rect x="102" y="88" width="34" height="6" rx="3" fill="var(--hand)" stroke="var(--muted)" stroke-width="1.6"/>
+              <text x="100" y="44" fill="var(--muted)" stroke="none" font-size="11" font-family="system-ui">30–40 см</text>
+            </svg><figcaption>Главное фото: сверху, ладонь рядом</figcaption></figure>
+            <figure><svg viewBox="0 0 150 110" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="58" width="10" height="34" rx="3" fill="var(--text)"/>
+              <path d="M18 70l34 6M18 82l34 6" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 4"/>
+              <path d="M8 96h134" stroke="var(--faint)" stroke-width="2"/>
+              <ellipse cx="88" cy="93" rx="40" ry="4" fill="var(--card)" stroke="var(--muted)" stroke-width="1.6"/>
+              <path d="M58 91c6-30 54-30 60 0" fill="var(--f)" opacity=".75"/>
+              <path d="M132 62v28M128 62h8M128 90h8" stroke="var(--p)" stroke-width="1.8"/>
+              <text x="128" y="56" text-anchor="middle" fill="var(--p)" stroke="none" font-size="11" font-family="system-ui">высота</text>
+            </svg><figcaption>Если высоко: ещё одно сбоку</figcaption></figure>
+          </div>
+          <ol class="steps">
+            <li><b>Эталон в кадре.</b> Еда на ладони или ладонь рядом с тарелкой, на том же уровне стола. Ещё точнее — банковская карта рядом: 8,56 × 5,4 см у всех одинаковые. Так устроен метод RFPM в исследованиях: карта-эталон рядом с едой.</li>
+            <li><b>Сверху, телефон параллельно столу,</b> с 30–40 см. Лучше отойти чуть дальше и приблизить зумом 2×: так меньше искажение, верх еды не «раздувается».</li>
+            <li><b>Высокое — ещё фото сбоку</b> на уровне тарелки: каша горкой, бутерброд, стейк толще 2 см, стакан. Сверху высоту не видно, это главная ошибка по фото.</li>
+            <li><b>Всё в кадре, свет ровный.</b> Не обрезай край тарелки, без вспышки и чёрных теней.</li>
+            <li><b>Мелочь — крупно.</b> Орехи, ягоды, кусочки сыра насыпь на ладонь и сними ближе: порции до 30 г ИИ оценивает хуже всего.</li>
+            <li><b>Не доел — «до» и «после».</b> Отправь оба фото вместе, остаток вычтется.</li>
+          </ol>
+        </div></div>
+      </div>
+
+      <div class="acc">
+        <button class="acc-h"><span class="em">✍️</span>Подпись решает<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b" hidden><div class="acc-in">
+          <p>Подпись главнее фото. Пиши в поле или скажи голосом 🎤:</p>
+          <ul>
+            <li><b>Что это и как приготовлено:</b> «куриное филе, жарил на 1 ст. л. масла», «творог 5%», «гречка на воде».</li>
+            <li><b>Знаешь вес — пиши вес:</b> «рис 180 г» с весов или этикетки. Вес из подписи берётся как есть.</li>
+            <li><b>Что не видно:</b> соус, масло, сахар в чае, майонез в салате.</li>
+          </ul>
+          <div class="note">Почему вес так важен: ИИ ошибается в основном в размере порции. Когда вес угадан, ошибка по калориям обычно меньше 100 ккал на приём (Lo и др., 2023).</div>
+          <p>Без фото тоже можно: «2 яйца, банан, кофе с молоком». Без веса возьмётся типичная порция.</p>
+        </div></div>
+      </div>
+
+      <div class="acc">
+        <button class="acc-h"><span class="em">🍺</span>Упаковки и бутылки<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b" hidden><div class="acc-in">
+          <p>Сфоткай этикетку так, чтобы были видны калории и объём или вес. Считается <b>вся упаковка</b>: бутылка 0,5 л — это 500 мл, а не 100 мл с этикетки.</p>
+          <p>Съел или выпил часть — напиши: «половину», «выпил 200 мл».</p>
+        </div></div>
+      </div>
+
+      <div class="acc" id="accHand">
+        <button class="acc-h"><span class="em">📏</span>Как замерить кисть<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b" hidden><div class="acc-in">
+          <div class="hand-fig" data-handfig></div>
+          <p>Нужна линейка или рулетка. Положи руку <b>ладонью вверх</b> на стол, пальцы вместе, большой палец чуть в сторону. Мерь ту руку, которую кладёшь рядом с едой.</p>
+          <ol class="steps">
+            <li><b>Длина кисти:</b> от складки на запястье (ближней к ладони) до кончика среднего пальца.</li>
+            <li><b>Ширина ладони:</b> поперёк по костяшкам, без большого пальца.</li>
+            <li><b>Остальное (3–7)</b> по желанию: длина ладони и пальцев, ширина пальцев. Не заполнишь — посчитаю по пропорциям.</li>
+          </ol>
+          <p>Мерь два раза и бери среднее. Нет линейки — сфоткай кисть рядом с банковской картой, замерю по фото.</p>
+          <p class="muted">Точки замеров — как в стандарте антропометрии ISO 7250-1.</p>
+          <button class="btn" id="helpToHand">Заполнить мои замеры</button>
+        </div></div>
+      </div>
+
+      <div class="acc">
+        <button class="acc-h"><span class="em">⚖️</span>Как из фото получается вес<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b" hidden><div class="acc-in">
+          <ol class="steps">
+            <li>По ладони или карте размеры еды переводятся в сантиметры. Поправка на перспективу: верх высокой еды ближе к камере и кажется больше.</li>
+            <li>По форме считается объём: брусок Д × Ш × В, цилиндр, горка, клин, тонкий слой.</li>
+            <li><b>Объём × плотность = вес.</b> Плотности — из базы FAO/INFOODS: отварной рис горкой ≈ 0,8 г/см³, мясо ≈ 1,0, листья салата ≈ 0,1.</li>
+            <li>Вес × калорийность на 100 г, плюс скрытый жир: жареное +5–10 г масла.</li>
+          </ol>
+          <div class="note">Пример: кусок сыра 6 × 4 × 2 см = 48 см³ × 1,1 г/см³ ≈ 53 г ≈ 190 ккал.</div>
+        </div></div>
+      </div>
+
+      <div class="acc">
+        <button class="acc-h"><span class="em">🎯</span>Насколько точно и как подстроить<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b" hidden><div class="acc-in">
+          <ul>
+            <li>По фото с эталоном ошибка по весу обычно 10–15%, на отдельной тарелке бывает до 25%. Угол съёмки (сверху или под 45°) почти не влияет (Herzig и др., 2020).</li>
+            <li>За несколько дней ошибки гасятся: метод RFPM занижал калории в среднем всего на 4–7% (Martin и др., 2014).</li>
+            <li>Ладонь работает: по ширине пальцев 80% оценок попали в ±25% от веса, а «ложками и чашками» — только 29% (Gibson и др., 2016).</li>
+          </ul>
+          <p><b>Подстрой под себя.</b> 3–5 раз взвесь еду на кухонных весах после расчёта. Если приложение стабильно ошибается в одну сторону — раздели «весы» на «приложение», возьми среднее и впиши в «Моя ладонь → Поправка по весам».</p>
+          <p>Ошибся один раз — открой запись и нажми «✏️ Исправить»: «на весах 60 г».</p>
+        </div></div>
+      </div>
+
+      <div class="acc">
+        <button class="acc-h"><span class="em">📚</span>Исследования<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b" hidden><div class="acc-in">
+          <ul class="src">
+            <li><b>Martin C.K. и др.</b> Measuring food intake with digital photography. J Hum Nutr Diet, 2014. Метод RFPM, карта-эталон. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4138603/" target="_blank" rel="noopener">статья</a></li>
+            <li><b>Gibson A.A. и др.</b> Accuracy of hands v. household measures as portion size estimation aids. J Nutr Sci, 2016. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4976119/" target="_blank" rel="noopener">статья</a></li>
+            <li><b>Herzig D. и др.</b> Volumetric food quantification using computer vision on a depth-sensing smartphone. JMIR mHealth uHealth, 2020. <a href="https://mhealth.jmir.org/2020/3/e15294" target="_blank" rel="noopener">статья</a></li>
+            <li><b>Lo F.P.-W. и др.</b> Dietary assessment with multimodal ChatGPT. arXiv, 2023. <a href="https://arxiv.org/abs/2312.08592" target="_blank" rel="noopener">статья</a></li>
+            <li><b>Coburn и др.</b> Evaluating large multimodal models for nutrition analysis. arXiv, 2025: подсказки о блюде уменьшают ошибку. <a href="https://arxiv.org/abs/2507.07048" target="_blank" rel="noopener">статья</a></li>
+            <li><b>FAO/INFOODS</b> Density Database v2.0, 2012 — плотности продуктов. <a href="https://openknowledge.fao.org/handle/20.500.14283/ap815e" target="_blank" rel="noopener">база</a></li>
+            <li><b>ISO 7250-1</b> — точки замеров тела и кисти.</li>
+          </ul>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Замеры ладони -->
+<div class="sheet tall" id="sHand" hidden role="dialog" aria-modal="true" aria-labelledby="sHandT">
+  <div class="sheet-bd"></div>
+  <div class="sheet-panel">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head"><h2 id="sHandT">Моя ладонь</h2><button class="ib x" aria-label="Закрыть">✕</button></div>
+    <div class="sheet-body">
+      <div class="muted" id="hIntro" style="margin:0 2px 8px">По этим размерам ладонь становится линейкой для еды. Ладонь вверх на столе, пальцы вместе.</div>
+      <div class="hand-fig" data-handfig></div>
+      <label class="measure" id="hMeasure"><span>📷</span><span id="hMeasureT">Замерить по фото с банковской картой</span><input id="hFile" type="file" accept="image/*" hidden></label>
+      <div class="tip">Кисть ладонью вверх на столе, рядом банковская карта. Телефон строго сверху, 30–40 см. Потом проверь цифры.</div>
+      <div class="tip" id="hNote"></div>
+      <div id="hNeed"></div>
+      <div class="acc" id="hMoreAcc">
+        <button class="acc-h"><span class="em">✋</span>Пальцы и ладонь<small class="muted" style="font-weight:400;margin-left:2px">по желанию</small><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b" hidden><div class="acc-in" id="hMore" style="padding-top:0"></div></div>
+      </div>
+      <div class="acc" id="hKAcc">
+        <button class="acc-h"><span class="em">⚖️</span>Поправка по весам<small class="muted" style="font-weight:400;margin-left:4px" id="hKSum"></small><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="acc-b" hidden><div class="acc-in" style="padding-top:0">
+          <p class="muted" style="margin-top:0">Если приложение стабильно занижает или завышает вес: 3–5 раз взвесь еду, раздели «весы» на «приложение» и впиши среднее. Например, весы 60 г, приложение 50 г → 1,2. Без поправки — 1.</p>
+          <div class="field" style="margin-top:6px"><div class="inp" style="margin-left:0"><input id="h_k" inputmode="decimal" enterkeyhint="done" placeholder="1" autocomplete="off"><span>×</span></div><div class="err"></div></div>
+        </div></div>
+      </div>
+    </div>
+    <div class="sheet-foot"><button class="btn" id="hSave">Сохранить</button></div>
+  </div>
+</div>
+
+<!-- Дневник клиента (для тренера) -->
+<div class="sheet tall" id="sClient" hidden role="dialog" aria-modal="true" aria-labelledby="sClientT">
+  <div class="sheet-bd"></div>
+  <div class="sheet-panel">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head"><h2 id="sClientT">Дневник</h2><button class="ib x" aria-label="Закрыть">✕</button></div>
+    <div class="sheet-body nofoot" id="clientBody"></div>
+  </div>
+</div>
+
+<!-- Приветствие клиента -->
+<div class="sheet" id="sWelcome" hidden role="dialog" aria-modal="true" aria-labelledby="sWelcomeT">
+  <div class="sheet-bd"></div>
+  <div class="sheet-panel">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head"><h2 id="sWelcomeT">Привет!</h2><button class="ib x" aria-label="Закрыть">✕</button></div>
+    <div class="sheet-body nofoot">
+      <p style="margin-top:0">Фоткай еду или пиши, что съел, — калории и БЖУ посчитаются сами, а итог дня будет сверху.</p>
+      <div class="li" style="cursor:default"><span class="em">1</span><span class="lt"><b>Замерь ладонь</b><small>2 минуты, один раз. Ладонь станет линейкой для еды.</small></span></div>
+      <div class="li" style="cursor:default"><span class="em">2</span><span class="lt"><b>Фоткай с ладонью рядом</b><small>Сверху, а высокую еду — ещё сбоку.</small></span></div>
+      <div class="li" style="cursor:default"><span class="em">3</span><span class="lt"><b>Подписывай, что не видно</b><small>Масло, соус, вес с весов.</small></span></div>
+      <button class="btn" id="wHand" style="margin-top:16px">📏 Замерить ладонь</button>
+      <button class="btn ghost" id="wHelp" style="margin-top:8px">Как фоткать</button>
+      <button class="btn ghost" id="wLater" style="margin-top:8px;border:0;background:none;color:var(--muted)">Позже</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ссылка, если «Поделиться» не открылось -->
+<div class="sheet" id="sLink" hidden role="dialog" aria-modal="true" aria-labelledby="sLinkT">
+  <div class="sheet-bd"></div>
+  <div class="sheet-panel">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head"><h2 id="sLinkT">Ссылка</h2><button class="ib x" aria-label="Закрыть">✕</button></div>
+    <div class="sheet-body nofoot"><div class="muted" id="linkWho"></div><div class="linkbox" id="linkText"></div><button class="btn" id="linkCopy">Скопировать</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<template id="handSvg">
+<svg viewBox="-16 0 280 300" fill="none" stroke-linecap="round" stroke-linejoin="round" font-family="system-ui,-apple-system,sans-serif" role="img" aria-label="Схема замеров кисти: 1 длина кисти, 2 ширина ладони, 3 длина ладони, 4 длина среднего пальца, 5 ширина указательного, 6 ширина большого, 7 его ногтевая фаланга">
+  <g fill="var(--faint)" stroke="var(--faint)" stroke-width="4"><rect x="88" y="214" width="76" height="80" rx="12"/><rect x="46" y="148" width="30" height="88" rx="15" transform="rotate(-32 76 232)"/><rect x="70" y="60" width="25" height="90" rx="12.5"/><rect x="99" y="40" width="26" height="110" rx="13"/><rect x="129" y="52" width="25" height="98" rx="12.5"/><rect x="158" y="80" width="23" height="70" rx="11.5"/><rect x="68" y="128" width="115" height="106" rx="26"/></g>
+  <g fill="var(--hand)"><rect x="88" y="214" width="76" height="80" rx="12"/><rect x="46" y="148" width="30" height="88" rx="15" transform="rotate(-32 76 232)"/><rect x="70" y="60" width="25" height="90" rx="12.5"/><rect x="99" y="40" width="26" height="110" rx="13"/><rect x="129" y="52" width="25" height="98" rx="12.5"/><rect x="158" y="80" width="23" height="70" rx="11.5"/><rect x="68" y="128" width="115" height="106" rx="26"/></g>
+  <rect x="53" y="153" width="16" height="19" rx="6" stroke="var(--faint)" stroke-width="1.6" transform="rotate(-32 76 232)"/>
+  <path d="M90 234h72" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="4 4"/>
+  <path d="M112 40h100M162 234h50" stroke="var(--faint)" stroke-width="1" stroke-dasharray="2 3"/>
+  <g stroke-width="2.4">
+    <path d="M212 40v194M206 40h12M206 234h12" stroke="#16a34a"/>
+    <path d="M68 154h115M68 148v12M183 148v12" stroke="#2563eb"/>
+    <path d="M112 156v76M106 156h12M106 232h12" stroke="#d97706"/>
+    <path d="M112 44v100M106 44h12M106 144h12" stroke="#9333ea"/>
+    <path d="M70 104h25M70 98v12M95 98v12" stroke="#db2777"/>
+    <g transform="rotate(-32 76 232)"><path d="M46 167h30M46 161v12M76 161v12" stroke="#0891b2"/><path d="M84 150v38M79 150h10M79 188h10" stroke="#65a30d"/></g>
+  </g>
+  <g font-size="12" font-weight="700" text-anchor="middle" fill="#fff">
+    <circle cx="212" cy="137" r="11" fill="#16a34a"/><text x="212" y="141">1</text>
+    <circle cx="150" cy="154" r="11" fill="#2563eb"/><text x="150" y="158">2</text>
+    <circle cx="112" cy="196" r="11" fill="#d97706"/><text x="112" y="200">3</text>
+    <circle cx="112" cy="94" r="11" fill="#9333ea"/><text x="112" y="98">4</text>
+    <circle cx="52" cy="104" r="11" fill="#db2777"/><text x="52" y="108">5</text>
+    <g transform="rotate(-32 76 232)"><circle cx="32" cy="167" r="11" fill="#0891b2"/><text x="32" y="171" transform="rotate(32 32 167)">6</text><circle cx="98" cy="169" r="11" fill="#65a30d"/><text x="98" y="173" transform="rotate(32 98 169)">7</text></g>
+  </g>
+  <text x="170" y="254" font-size="11" fill="var(--muted)">складка</text><text x="170" y="267" font-size="11" fill="var(--muted)">запястья</text>
+</svg>
+</template>
+
 <script>
 const $ = id => document.getElementById(id);
+const R = document.documentElement.style;
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const store = {
   get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
   set(k, v){ try { localStorage.setItem(k, v); } catch {} }
 };
+function el(tag, props, ...kids){
+  const e = document.createElement(tag);
+  if (props) for (const [k, v] of Object.entries(props)){
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "text") e.textContent = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k === "style") e.style.cssText = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return e;
+}
+const ICON = {
+  chev: '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+  trash: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>'
+};
+const nf = n => Math.round(n).toLocaleString("ru-RU");
+const f1 = v => String(Math.round(v * 10) / 10).replace(".", ",");
+const parseNum = s => { const n = Number(String(s).replace(",", ".").trim()); return Number.isFinite(n) ? n : NaN; };
+
+// ---------- доступ по личной ссылке ----------
 const params = new URLSearchParams(location.search);
 // Личный ключ держим в адресе: у иконки на экране «Домой» своя память, отдельная от Safari.
 if (params.get("t")) store.set("token", params.get("t"));
 let token = store.get("token", "");
 if (token && params.get("t") !== token) history.replaceState(null, "", location.pathname + "?t=" + token);
-let hist = [];
+const linkFor = t => location.origin + location.pathname + "?t=" + t;
 
-async function api(route, body){
-  const r = await fetch("/api/" + route, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({token, ...body})});
-  const data = await r.json().catch(() => ({error: "Сервер не ответил"}));
+let ME = null, hist = [];
+async function api(route, body, opt){
+  const r = await fetch("/api/" + route, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({token, ...body}), keepalive: !!(opt && opt.keepalive)});
+  const data = await r.json().catch(() => ({error: "Сервер не ответил, проверь интернет"}));
   if (!r.ok || data.error) throw new Error(data.error || ("HTTP " + r.status));
   return data;
 }
-// Голосовой ввод: распознавание речи браузера, а если его нет — микрофон на клавиатуре iPhone.
+
+// ---------- плавное раскрытие ----------
+function slide(box, open, done){
+  if (box._anim){ box._anim.cancel(); box._anim = null; }
+  if (reduce || !box.animate){ box.hidden = !open; done && done(); return; }
+  if (open){
+    box.hidden = false; const h = box.scrollHeight;
+    box._anim = box.animate([{height: "0px", opacity: 0}, {height: h + "px", opacity: 1}], {duration: 280, easing: "cubic-bezier(.2,.85,.25,1)"});
+  } else {
+    const h = box.scrollHeight;
+    box._anim = box.animate([{height: h + "px", opacity: 1}, {height: "0px", opacity: 0}], {duration: 200, easing: "ease-in"});
+  }
+  box._anim.onfinish = () => { box._anim = null; if (!open) box.hidden = true; done && done(); };
+}
+function toggleAcc(acc, open, quiet){
+  open = open === undefined ? !acc.classList.contains("open") : open;
+  acc.classList.toggle("open", open);
+  slide(acc.querySelector(":scope>.acc-b"), open, () => { if (open && !quiet) revealInSheet(acc, true); });
+}
+// Прокрутить шторку так, чтобы элемент оказался вверху видимой части.
+function sheetScrollTo(node){
+  const body = node.closest(".sheet-body"); if (!body) return;
+  body.scrollBy({top: node.getBoundingClientRect().top - body.getBoundingClientRect().top - 8, behavior: reduce ? "auto" : "smooth"});
+}
+document.addEventListener("click", e => {
+  const h = e.target.closest(".acc-h"); if (h) toggleAcc(h.parentElement);
+});
+
+// ---------- клавиатура и видимая часть экрана ----------
+// iPhone не ужимает страницу под клавиатуру: берём видимую область из visualViewport.
+// Строка ввода поднимается над клавиатурой, шторки занимают ровно видимую часть, поле ввода в шторке — по центру.
+const vv = window.visualViewport;
+let kbOpen = false;
+function nearBottom(){ return innerHeight + scrollY >= document.documentElement.scrollHeight - 90; }
+function syncViewport(){
+  const H = document.documentElement.clientHeight;
+  const zoomed = vv && vv.scale > 1.05;
+  const ok = vv && !zoomed && vv.height > 120;
+  const vh = ok ? vv.height : innerHeight, top = ok ? vv.offsetTop : 0;
+  let kb = Math.max(0, Math.round(H - vh - top)); if (kb < 2) kb = 0;
+  const wasBottom = nearBottom();
+  R.setProperty("--vv-h", vh + "px"); R.setProperty("--vv-top", top + "px"); R.setProperty("--kb", kb + "px");
+  const open = kb > 80 || (document.activeElement === $("note") && innerHeight < screen.height * 0.6);
+  if (open !== kbOpen){ kbOpen = open; document.body.classList.toggle("kb", open); $("today").classList.toggle("compact", open); }
+  padBottom();
+  if (wasBottom && !sheets.length) toBottom(false);
+  const ae = document.activeElement;
+  if (ae && ae.closest && ae.closest(".sheet") && ae.matches("input,textarea")) revealInSheet(ae);
+}
+function padBottom(){
+  const dh = $("dock").offsetHeight;
+  R.setProperty("--dock-h", dh + "px");
+  document.body.style.paddingBottom = (dh + parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kb")) + 16) + "px";
+}
+if (vv){ vv.addEventListener("resize", syncViewport); vv.addEventListener("scroll", syncViewport); }
+addEventListener("resize", syncViewport);
+const toBottom = (smooth = true) => requestAnimationFrame(() => window.scrollTo({top: document.documentElement.scrollHeight, behavior: smooth && !reduce ? "smooth" : "auto"}));
+
+// Поле в шторке прокручиваем в середину видимой части, а не всю страницу.
+function revealInSheet(node, nearest){
+  const body = node.closest && node.closest(".sheet-body"); if (!body) return;
+  const r = node.getBoundingClientRect(), b = body.getBoundingClientRect();
+  let dy = 0;
+  if (nearest){ if (r.bottom > b.bottom - 8) dy = Math.min(r.bottom - b.bottom + 16, r.top - b.top - 8); }
+  else dy = r.top - b.top - (b.height - r.height) / 2;
+  if (Math.abs(dy) > 4) body.scrollBy({top: dy, behavior: reduce ? "auto" : "smooth"});
+}
+document.addEventListener("focusin", e => {
+  if (e.target.closest && e.target.closest(".sheet") && e.target.matches("input,textarea")) setTimeout(() => revealInSheet(e.target), 350);
+  if (e.target === $("note")) setTimeout(syncViewport, 350);
+});
+document.addEventListener("focusout", () => setTimeout(syncViewport, 350));
+
+// ---------- шторки ----------
+const sheets = [];
+let popSkip = 0;
+function openSheet(id){
+  const s = $(id); if (sheets.includes(s)) return;
+  const ae = document.activeElement; if (ae && ae.blur && !s.contains(ae)) ae.blur();
+  s.hidden = false; s.style.zIndex = 40 + sheets.length * 2; sheets.push(s);
+  document.documentElement.classList.add("locked"); document.body.classList.add("sheet-open");
+  const panel = s.querySelector(".sheet-panel"); panel.style.transform = ""; panel.style.transition = "";
+  void panel.offsetWidth;
+  requestAnimationFrame(() => s.classList.add("show"));
+  try { history.pushState({sheet: id}, ""); } catch {}
+}
+function closeSheet(s, fromPop){
+  s = typeof s === "string" ? $(s) : s;
+  while (sheets.length && sheets[sheets.length - 1] !== s) closeSheet(sheets[sheets.length - 1], fromPop);
+  const i = sheets.indexOf(s); if (i < 0) return;
+  sheets.splice(i, 1);
+  const ae = document.activeElement; if (ae && s.contains(ae)) ae.blur();
+  const panel = s.querySelector(".sheet-panel"); panel.style.transition = ""; panel.style.transform = "";
+  s.classList.remove("show");
+  clearTimeout(s._t); s._t = setTimeout(() => { if (!s.classList.contains("show")) s.hidden = true; }, reduce ? 0 : 360);
+  if (!sheets.length){ document.documentElement.classList.remove("locked"); document.body.classList.remove("sheet-open"); }
+  if (!fromPop && history.state && history.state.sheet){ popSkip++; history.back(); }
+}
+addEventListener("popstate", () => {
+  if (popSkip){ popSkip--; return; }
+  const top = sheets[sheets.length - 1]; if (top) closeSheet(top, true);
+});
+addEventListener("keydown", e => { if (e.key === "Escape" && sheets.length) closeSheet(sheets[sheets.length - 1]); });
+// Закрыть: крестик, тап по затемнению, смахнуть вниз за «ручку», заголовок или с самого верха содержимого.
+document.querySelectorAll(".sheet").forEach(s => {
+  const panel = s.querySelector(".sheet-panel"), body = s.querySelector(".sheet-body");
+  s.querySelector(".x").onclick = () => closeSheet(s);
+  const bd = s.querySelector(".sheet-bd");
+  bd.onclick = () => closeSheet(s);
+  bd.addEventListener("touchmove", e => e.preventDefault(), {passive: false});
+  let y0 = null, dy = 0, t0 = 0, drag = false, fromBody = false;
+  const start = (y, body) => { y0 = y; dy = 0; t0 = Date.now(); drag = !body; fromBody = body; if (drag) panel.style.transition = "none"; };
+  const move = (y, e) => {
+    if (y0 === null) return;
+    const d = y - y0;
+    if (!drag){
+      const typing = document.activeElement && s.contains(document.activeElement) && document.activeElement.matches("input,textarea");
+      if (fromBody && body.scrollTop <= 0 && d > 10 && !typing){ drag = true; y0 = y; panel.style.transition = "none"; }
+      else return;
+    }
+    dy = Math.max(0, y - y0); panel.style.transform = "translateY(" + dy + "px)";
+    if (e.cancelable) e.preventDefault();
+  };
+  const end = () => {
+    if (y0 === null) return; y0 = null;
+    if (!drag) return; drag = false;
+    panel.style.transition = "";
+    const v = dy / Math.max(1, Date.now() - t0);
+    if (dy > 120 || (dy > 40 && v > 0.5)) closeSheet(s); else panel.style.transform = "";
+  };
+  [s.querySelector(".sheet-grab"), s.querySelector(".sheet-head")].forEach(h => {
+    h.addEventListener("touchstart", e => { if (!e.target.closest(".x")) start(e.touches[0].clientY, false); }, {passive: true});
+  });
+  body.addEventListener("touchstart", e => start(e.touches[0].clientY, true), {passive: true});
+  s.addEventListener("touchmove", e => move(e.touches[0].clientY, e), {passive: false});
+  s.addEventListener("touchend", end); s.addEventListener("touchcancel", end);
+});
+
+// ---------- всплывающие сообщения (с «Вернуть») ----------
+let toastT = null, toastDone = null;
+function toast(msg, opt = {}){
+  flushToast();
+  const t = $("toast");
+  t.replaceChildren(el("span", {text: msg}));
+  if (opt.action) t.append(el("button", {text: opt.action, onclick: () => { toastDone = null; hideToast(); opt.onAction && opt.onAction(); }}));
+  toastDone = opt.onClose || null;
+  t.classList.add("show"); clearTimeout(toastT);
+  toastT = setTimeout(flushToast, opt.ms || (opt.action ? 5000 : 2800));
+}
+function hideToast(){ clearTimeout(toastT); $("toast").classList.remove("show"); }
+function flushToast(){ const f = toastDone; toastDone = null; hideToast(); if (f) f(); }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flushToast(); });
+
+// ---------- голос ----------
+// Распознавание речи браузера, а если его нет — микрофон на клавиатуре iPhone.
 const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
 // Один распознаватель на всё время, пока открыта страница: iPhone спрашивает разрешение
 // на каждый новый объект, а повторный запуск того же обычно проходит без вопроса.
@@ -153,14 +756,14 @@ function recognizer(){
   if (shared) return shared;
   shared = new Rec(); shared.lang = "ru-RU"; shared.interimResults = true; shared.continuous = false;
   shared.onresult = ev => { if (active) active.result([...ev.results].map(r => r[0].transcript).join("")); };
-  shared.onerror = ev => { if (active && (ev.error === "not-allowed" || ev.error === "service-not-allowed")) $("status").textContent = "iPhone не дал микрофон. Разреши его и нажми ещё раз"; };
+  shared.onerror = ev => { if (active && (ev.error === "not-allowed" || ev.error === "service-not-allowed")) toast("iPhone не дал микрофон. Разреши его и нажми ещё раз"); };
   shared.onend = () => { const a = active; active = null; if (a) a.done(); };
   return shared;
 }
 function mic(btn, field){
   btn.onclick = e => {
     e.preventDefault();
-    if (!Rec){ $("status").textContent = "Этот браузер не умеет голосовой ввод"; return; }
+    if (!Rec){ field.focus(); toast("Нажми 🎤 на клавиатуре — так тоже можно голосом"); return; }
     const r = recognizer();
     if (active){ const mine = active.btn === btn; r.stop(); if (mine) return; }
     const base = field.value ? field.value.trim() + " " : "";
@@ -172,73 +775,219 @@ function mic(btn, field){
   };
 }
 mic($("noteMic"), $("note"));
-const linkFor = t => location.origin + location.pathname + "?t=" + t;
 
+// ---------- запуск ----------
 async function start(){
   const st = await api("status").catch(() => ({configured: true, user: null}));
   if (!st.configured){ $("setup").hidden = false; return; }
   if (!st.user){ $("noaccess").hidden = false; return; }
+  ME = st.user;
   $("main").hidden = false;
-  $("title").textContent = st.user.owner ? "Посчитать еду" : "Посчитать еду · " + st.user.name;
+  $("title").textContent = ME.owner ? "Посчитать еду" : "Посчитать еду · " + ME.name;
   $("myLink").textContent = linkFor(token);
-  if (st.user.owner){ $("clients").hidden = false; loadClients(); }
-  const h = await api("history"); hist = h.history; renderHistory();
+  $("clientsBox").hidden = !ME.owner;
+  renderBanner(); renderToday(); refreshDock();
+  try { const h = await api("history"); hist = h.history; ME = {...ME, hand: h.hand, handSet: h.handSet}; }
+  catch (e){ toast("Не загрузилась история: " + e.message, {action: "Ещё раз", onAction: () => location.reload()}); }
+  renderHistory(); renderBanner();
+  toBottom(false);
+  if (!ME.owner && !ME.handSet && !store.get("welcomed-" + token.slice(0, 8), "")){
+    $("sWelcomeT").textContent = "Привет, " + ME.name + "!";
+    setTimeout(() => openSheet("sWelcome"), 450);
+  }
 }
-
 $("saveKey").onclick = async () => {
   try {
     const r = await api("setup", {});
     token = r.token; store.set("token", token); history.replaceState(null, "", location.pathname + "?t=" + token); $("setup").hidden = true; start();
-  } catch (e){ alert(e.message); }
+  } catch (e){ toast(e.message); }
 };
+const welcomed = () => store.set("welcomed-" + token.slice(0, 8), "1");
+$("wHand").onclick = () => { welcomed(); closeSheet("sWelcome"); setTimeout(() => openHand(), 120); };
+$("wHelp").onclick = () => { welcomed(); closeSheet("sWelcome"); setTimeout(() => openSheet("sHelp"), 120); };
+$("wLater").onclick = () => { welcomed(); closeSheet("sWelcome"); };
 
-$("addClient").onclick = async () => {
-  try {
-    const r = await api("invite", {name: $("cname").value});
-    $("cname").value = ""; await loadClients();
-    shareLink(linkFor(r.token));
-  } catch (e){ alert(e.message); }
-};
+// ---------- итог дня ----------
+let shownKcal = 0;
+function sumDay(list, day){
+  const s = {kcal: 0, p: 0, f: 0, c: 0, n: 0};
+  for (const h of list){ if (new Date(h.at).toDateString() !== day || !h.totals) continue; s.n++; for (const k of ["kcal", "p", "f", "c"]) s[k] += h.totals[k]; }
+  return s;
+}
+const macroChips = s => [["p", "Б", s.p], ["f", "Ж", s.f], ["c", "У", s.c]].map(([k, l, v]) => el("span", {class: "mc " + k}, el("i"), l + " " + nf(v)));
+function renderToday(){
+  const s = sumDay(hist, new Date().toDateString());
+  $("tDate").textContent = "Сегодня, " + new Date().toLocaleDateString("ru-RU", {weekday: "long", day: "numeric", month: "long"}) + (s.n ? " · приёмов: " + s.n : "");
+  $("tM").replaceChildren(...macroChips(s));
+  countTo($("tK"), shownKcal, s.kcal); shownKcal = s.kcal;
+}
+function countTo(node, from, to){
+  if (reduce || from === to){ node.textContent = nf(to); return; }
+  const t0 = performance.now(), d = 650;
+  const step = t => { const k = Math.min(1, (t - t0) / d), e = 1 - Math.pow(1 - k, 3); node.textContent = nf(from + (to - from) * e); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function renderBanner(){ $("handBanner").hidden = !ME || ME.owner || ME.handSet; }
+$("handBanner").onclick = () => openHand();
+$("helpBtn").onclick = () => openSheet("sHelp");
+$("menuBtn").onclick = () => { updateMenu(); openSheet("sMenu"); if (ME && ME.owner) loadClients(); };
 
-// Отправить клиенту его личную ссылку: меню «Поделиться» iPhone, а если оно не открылось — окно со ссылкой для копирования.
-async function shareLink(link){
-  const text = "Твоя ссылка, чтобы считать еду: " + link;
-  if (navigator.share){
-    try { await navigator.share({text}); return; } catch (e){ if (e.name === "AbortError") return; }
+// ---------- история ----------
+let openSet = new Set(), flashAt = null, busyAt = null, limit = 60;
+function mealName(h){
+  const names = (h.text || "").split("\n").map(l => l.match(/^\s*\d+[.)]\s*(.+?)\s+[—–-]\s/)).filter(Boolean).map(m => m[1]);
+  if (names.length) return names.join(", ");
+  return h.note || (h.n ? "фото" : "запись");
+}
+function dayTitle(ts){
+  const d = new Date(ts), t = new Date(), y = new Date(); y.setDate(t.getDate() - 1);
+  if (d.toDateString() === t.toDateString()) return "Сегодня";
+  if (d.toDateString() === y.toDateString()) return "Вчера";
+  return d.toLocaleDateString("ru-RU", {weekday: "short", day: "numeric", month: "long"});
+}
+// Список по дням: старые сверху, свежие внизу, как в мессенджере (oldestFirst) или наоборот (дневник клиента).
+function dayList(list, opt){
+  const nodes = [], groups = new Map();
+  for (const h of list){ const k = new Date(h.at).toDateString(); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(h); }
+  let keys = [...groups.keys()];
+  keys.sort((a, b) => new Date(a) - new Date(b)); if (!opt.oldestFirst) keys.reverse();
+  for (const k of keys){
+    const items = groups.get(k).sort((a, b) => opt.oldestFirst ? a.at - b.at : b.at - a.at);
+    const s = sumDay(items, k);
+    nodes.push(el("div", {class: "day"}, el("span", {text: dayTitle(items[0].at)}), el("span", {text: nf(s.kcal) + " ккал"})));
+    for (const h of items) nodes.push(entry(h, opt));
   }
-  try { await navigator.clipboard.writeText(link); } catch {}
-  prompt("Ссылка клиента (уже скопирована, если телефон разрешил). Отправь её клиенту:", link);
+  return nodes;
+}
+function renderHistory(){
+  renderToday();
+  const shown = hist.slice(0, limit);
+  const nodes = [];
+  if (hist.length > limit) nodes.push(el("button", {class: "more", text: "Показать раньше", onclick: () => { const h0 = document.documentElement.scrollHeight; limit += 60; renderHistory(); scrollBy(0, document.documentElement.scrollHeight - h0); }}));
+  nodes.push(...dayList(shown, {oldestFirst: true}));
+  if (!hist.length && !jobs.length) nodes.push(el("div", {class: "card empty"},
+    el("div", {class: "big", text: "🍽"}), el("b", {text: "Что сегодня ел?"}),
+    el("div", {class: "muted", text: "Сфоткай еду с ладонью рядом (кнопка +) или напиши словами внизу."}),
+    el("button", {class: "btn ghost", style: "margin-top:14px", text: "Как фоткать, чтобы считало точно", onclick: () => openSheet("sHelp")})));
+  $("hist").replaceChildren(...nodes);
+  if (flashAt){
+    const m = $("hist").querySelector('[data-at="' + flashAt + '"]'); flashAt = null;
+    if (m){ m.classList.add("flash"); setTimeout(() => m.classList.remove("flash"), 1700); }
+  }
+}
+function entry(h, opt = {}){
+  const m = el("div", {class: "meal" + (openSet.has(h.at) ? " open" : "") + (busyAt === h.at ? " busy" : "") + (opt.readOnly ? " ro" : ""), "data-at": h.at});
+  const time = new Date(h.at).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"});
+  const row = el("div", {class: "row", role: "button", tabindex: "0", "aria-expanded": openSet.has(h.at) ? "true" : "false"});
+  row.insertAdjacentHTML("beforeend", ICON.chev);
+  row.append(el("span", {class: "t", text: time}), el("span", {class: "nm", text: mealName(h)}),
+    el("span", {class: "kc"}, h.totals ? nf(h.totals.kcal) : "—", el("small", {text: " ккал"})));
+  if (busyAt === h.at) row.append(el("span", {class: "spin", style: "margin:0 12px"}));
+  else if (!opt.readOnly){
+    const del = el("button", {class: "del", "aria-label": "Удалить приём пищи", html: ICON.trash});
+    del.onclick = e => { e.stopPropagation(); removeEntry(h); };
+    row.append(del);
+  }
+  const body = el("div", {class: "mbody"}); body.hidden = !openSet.has(h.at);
+  const inner = el("div", {class: "mbody-in"});
+  if (h.totals) inner.append(el("div", {class: "chips"}, macroChips(h.totals)));
+  if (h.note) inner.append(el("div", {class: "cap", text: (h.n ? "Подпись: " : "Записано текстом: ") + h.note}));
+  inner.append(el("div", {class: "txt", text: h.text + (h.fixes ? "\n\nПоправки: " + h.fixes.join("; ") : "")}));
+  if (!opt.readOnly) inner.append(el("div", {class: "acts"},
+    el("button", {class: "act", text: "✏️ Исправить", onclick: () => startFix(h)}),
+    el("button", {class: "act danger", text: "Удалить", onclick: () => removeEntry(h)})));
+  body.append(inner);
+  const toggle = () => {
+    const open = !m.classList.contains("open");
+    m.classList.toggle("open", open); row.setAttribute("aria-expanded", open);
+    if (open) openSet.add(h.at); else openSet.delete(h.at);
+    slide(body, open, () => { if (open) scrollIntoViewIfNeeded(m); });
+  };
+  row.onclick = toggle;
+  row.onkeydown = e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); toggle(); } };
+  m.append(row, body);
+  return m;
+}
+// Раскрытая запись не должна уехать под строку ввода или клавиатуру.
+function scrollIntoViewIfNeeded(node){
+  const sb = node.closest(".sheet-body");
+  if (sb){ revealInSheet(node, true); return; }
+  const r = node.getBoundingClientRect();
+  const bottom = (vv ? vv.height + vv.offsetTop : innerHeight) - $("dock").offsetHeight - 10;
+  const topLimit = $("today").getBoundingClientRect().bottom + 10;
+  if (r.bottom > bottom) scrollBy({top: Math.min(r.bottom - bottom, r.top - topLimit), behavior: reduce ? "auto" : "smooth"});
+}
+function addEntry(e){
+  hist = [e, ...hist.filter(x => x.at !== e.at)].sort((a, b) => b.at - a.at);
+  flashAt = e.at; renderHistory();
+}
+// Удаление сразу, с «Вернуть» 5 секунд; на сервер уходит, когда сообщение исчезнет.
+function removeEntry(h){
+  hist = hist.filter(x => x.at !== h.at); openSet.delete(h.at);
+  if (fixing && fixing.at === h.at) stopFix();
+  renderHistory();
+  const nm = mealName(h);
+  toast("Удалено: " + (nm.length > 34 ? nm.slice(0, 32).trim() + "…" : nm), {
+    action: "Вернуть",
+    onAction: () => { hist = [...hist, h].sort((a, b) => b.at - a.at); flashAt = h.at; renderHistory(); },
+    onClose: () => api("delete", {at: h.at}, {keepalive: true}).catch(e => {
+      hist = [...hist, h].sort((a, b) => b.at - a.at); renderHistory(); toast("Не удалось удалить: " + e.message);
+    })
+  });
 }
 
-async function loadClients(){
-  const r = await api("people");
-  $("clientList").replaceChildren(...r.people.map(p => {
-    const d = document.createElement("div"); d.className = "card"; d.style.whiteSpace = "normal";
-    const n = document.createElement("div"); n.textContent = p.name; n.style.fontWeight = "600";
-    const share = document.createElement("button"); share.className = "small"; share.textContent = "Отправить ссылку";
-    share.onclick = () => shareLink(linkFor(p.token));
-    const rm = document.createElement("button"); rm.className = "small"; rm.textContent = "Закрыть доступ"; rm.style.marginLeft = "12px";
-    rm.onclick = async () => { if (confirm("Закрыть доступ для " + p.name + "?")){ await api("revoke", {who: p.token}); loadClients(); } };
-    d.append(n, share, rm); return d;
-  }));
+// ---------- строка ввода: черновик, фото, день ----------
+let pending = [], dayChoice = "auto";
+const DAYS = [["auto", "авто"], ["0", "сегодня"], ["1", "вчера"], ["2", "позавчера"]];
+function renderDays(){
+  $("days").replaceChildren(el("span", {class: "lb", text: "День записи · авто: по времени съёмки"}), ...DAYS.map(([v, t]) =>
+    el("button", {class: "chip" + (dayChoice === v ? " on" : ""), text: t, onclick: () => { dayChoice = v; renderDays(); refreshDock(); }})));
 }
+renderDays();
+function refreshDock(){
+  const note = $("note").value.trim();
+  $("send").disabled = fixing ? !note : !note && !pending.length;
+  $("dhint").textContent = !fixing && dayChoice !== "auto" ? "Запишу на " + DAYS.find(d => d[0] === dayChoice)[1] : "";
+  $("pend").replaceChildren(...pending.map((p, i) => el("div", null, el("img", {src: p.url, alt: ""}),
+    el("button", {"aria-label": "Убрать фото", text: "✕", onclick: () => { URL.revokeObjectURL(p.url); pending.splice(i, 1); refreshDock(); }}))));
+  padBottom();
+}
+function autosize(){ const t = $("note"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 132) + "px"; }
+$("note").addEventListener("input", () => { autosize(); refreshDock(); });
+$("note").addEventListener("keydown", e => {
+  // Enter на компьютере отправляет, Shift+Enter — новая строка. На телефоне Enter — обычный перенос.
+  if (e.key === "Enter" && !e.shiftKey && matchMedia("(hover:hover) and (pointer:fine)").matches){ e.preventDefault(); if (!$("send").disabled) $("send").click(); }
+});
+function setPlus(open){
+  if (open === !$("pmenu").hidden) return;
+  $("plus").classList.toggle("open", open);
+  slide($("pmenu"), open, padBottom);
+  setTimeout(padBottom, 300);
+}
+$("plus").onclick = () => setPlus($("pmenu").hidden);
+$("pHelp").onclick = () => { setPlus(false); openSheet("sHelp"); };
+$("file").onchange = $("cam").onchange = e => {
+  setPlus(false);
+  for (const f of [...e.target.files]) if (pending.length < 20) pending.push({file: f, url: URL.createObjectURL(f)});
+  e.target.value = ""; refreshDock();
+};
+$("send").onclick = () => fixing ? sendFix() : send();
 
-function resize(file){
+function resize(file, side = 1024, q = .72){
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const scale = Math.min(1, 1024 / Math.max(img.width, img.height));
+      const scale = Math.min(1, side / Math.max(img.width, img.height));
       const c = document.createElement("canvas");
       c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(img.src);
-      resolve(c.toDataURL("image/jpeg", 0.72));
+      resolve(c.toDataURL("image/jpeg", q));
     };
-    img.onerror = reject;
+    img.onerror = () => reject(new Error("Не открылось фото"));
     img.src = URL.createObjectURL(file);
   });
 }
-
 // Дата съёмки из EXIF (DateTimeOriginal), если её нет — дата файла.
 async function shotTime(file){
   try {
@@ -266,10 +1015,9 @@ async function shotTime(file){
   } catch {}
   return file.lastModified || Date.now();
 }
-
 // К какому дню записать: выбранный вручную или по времени съёмки.
-function chosenAt(shots){
-  const now = Date.now(), sel = $("day").value;
+function chosenAt(shots, sel){
+  const now = Date.now();
   let at = shots.length ? Math.max(...shots) : now;
   if (sel !== "auto"){
     const d = new Date(at), t = new Date(); t.setDate(t.getDate() - +sel);
@@ -277,206 +1025,310 @@ function chosenAt(shots){
   }
   return Math.min(at, now);
 }
-function addEntry(e){ hist = [e, ...hist.filter(x => x.at !== e.at)].sort((a, b) => b.at - a.at); renderHistory(); $("day").value = "auto"; }
 
-// Черновик: сначала собираем фото и текст, потом одна кнопка «Посчитать».
-let pending = [];
-function refresh(){
-  const note = $("note").value.trim(), n = pending.length;
-  $("send").disabled = fixing ? !note : !note && !n;
-  const day = $("day").value; $("sendHint").textContent = day === "auto" ? "" : "Запишу на " + $("day").selectedOptions[0].text;
-  $("pend").replaceChildren(...pending.map((p, i) => {
-    const d = document.createElement("div"), im = document.createElement("img"), x = document.createElement("button");
-    im.src = p.url; x.textContent = "✕"; x.setAttribute("aria-label", "Убрать фото");
-    x.onclick = () => { URL.revokeObjectURL(p.url); pending.splice(i, 1); refresh(); };
-    d.append(im, x); return d;
-  }));
-  document.body.style.paddingBottom = ($("dock").offsetHeight + 16) + "px";
-}
-$("note").addEventListener("input", () => {
-  const t = $("note"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 120) + "px"; refresh();
-});
-$("plus").onclick = () => { $("menu").hidden = !$("menu").hidden; $("plus").classList.toggle("open", !$("menu").hidden); refresh(); };
-$("day").onchange = refresh;
-$("file").onchange = $("cam").onchange = e => {
-  $("menu").hidden = true; $("plus").classList.remove("open");
-  for (const f of [...e.target.files]) if (pending.length < 20) pending.push({file: f, url: URL.createObjectURL(f)});
-  e.target.value = ""; refresh();
-};
-$("send").onclick = () => fixing ? sendFix() : analyze(pending.map(p => p.file));
-
-async function analyze(files){
+// ---------- очередь расчётов: отправил и пишешь дальше ----------
+const jobs = []; let jobSeq = 0, running = false, ticker = null;
+function send(){
   const note = $("note").value.trim();
-  if (!files.length && !note) return;
-  const shots = await Promise.all(files.map(shotTime));
-  const order = files.map((f, i) => i).sort((a, b) => shots[a] - shots[b]);
-  files = order.map(i => files[i]); const times = order.map(i => shots[i]);
-  $("out").innerHTML = ""; $("thumbs").innerHTML = "";
-  $("send").disabled = true; $("pick").style.pointerEvents = $("shoot").style.pointerEvents = "none";
-  const images = [];
+  if (!note && !pending.length) return;
+  jobs.push({id: ++jobSeq, files: pending.map(p => p.file), urls: pending.map(p => p.url), note, day: dayChoice, state: "wait"});
+  pending = []; $("note").value = ""; autosize(); dayChoice = "auto"; renderDays(); setPlus(false); refreshDock();
+  if (navigator.vibrate) navigator.vibrate(8);
+  renderJobs(); renderHistory(); toBottom(); runQueue();
+}
+async function runQueue(){
+  if (running) return; running = true;
+  let j; while ((j = jobs.find(x => x.state === "wait"))) await runJob(j);
+  running = false;
+}
+async function runJob(j){
+  j.state = "run"; j.t0 = Date.now(); renderJobs();
   try {
-    if (files.length) $("status").textContent = "Готовлю " + files.length + " фото…";
-    for (const [i, f] of files.entries()){
-      const url = await resize(f);
-      const t = document.createElement("img"); t.src = url; $("thumbs").append(t);
-      images.push({data: url.split(",")[1], time: new Date(times[i]).toLocaleString("ru-RU", {day: "numeric", month: "long", hour: "2-digit", minute: "2-digit"})});
+    if (!j.payload){
+      const shots = await Promise.all(j.files.map(shotTime));
+      const order = j.files.map((f, i) => i).sort((a, b) => shots[a] - shots[b]);
+      const images = [];
+      for (const i of order){
+        const url = await resize(j.files[i]);
+        images.push({data: url.split(",")[1], time: new Date(shots[i]).toLocaleString("ru-RU", {day: "numeric", month: "long", hour: "2-digit", minute: "2-digit"})});
+      }
+      j.payload = {images, note: j.note, at: chosenAt(order.map(i => shots[i]), j.day)};
     }
-    $("status").textContent = files.length ? "Считаю… (10–30 сек)" : "Считаю… (5–15 сек)";
-    toBottom();
-    const r = await api("analyze", {images, note, at: chosenAt(times)});
-    $("note").value = ""; $("note").style.height = "auto";
-    pending.forEach(p => URL.revokeObjectURL(p.url)); pending = [];
-    $("thumbs").innerHTML = ""; addEntry(r.entry); $("status").textContent = ""; toBottom();
+    const r = await api("analyze", j.payload);
+    jobs.splice(jobs.indexOf(j), 1); j.urls.forEach(u => URL.revokeObjectURL(u));
+    const atBottom = nearBottom();
+    addEntry(r.entry); renderJobs();
+    if (atBottom) toBottom();
   } catch (e){
-    $("status").textContent = "Ошибка: " + e.message + ". Фото и текст остались, нажми «Посчитать» ещё раз.";
-  } finally {
-    $("pick").style.pointerEvents = $("shoot").style.pointerEvents = ""; refresh();
+    j.state = "err"; j.err = e.message; renderJobs();
   }
 }
-
-function show(h){
-  const d = document.createElement("div");
-  d.append(card(h), fixBox(h));
-  $("out").replaceChildren(d);
+function renderJobs(){
+  $("jobs").replaceChildren(...jobs.map(j => {
+    const th = el("div", {class: "th"}, j.urls.length ? j.urls.slice(0, 3).map(u => el("img", {src: u, alt: ""})) : el("div", {class: "tx", text: "✍️"}));
+    const name = j.note || (j.urls.length + " фото");
+    const sec = j.t0 ? Math.round((Date.now() - j.t0) / 1000) : 0;
+    const st = j.state === "run" ? "Считаю… " + sec + " с" + (j.urls.length ? " · обычно 10–30 с" : "") : j.state === "wait" ? "В очереди" : "Не посчиталось: " + j.err;
+    const box = el("div", {class: "job" + (j.state === "err" ? " err" : ""), "data-job": j.id}, th,
+      el("div", {class: "jt"}, el("div", {class: "jn", text: name}), el("div", {class: "js", text: st}), j.state !== "err" ? el("div", {class: "prog"}, el("i")) : null));
+    if (j.state === "err") box.append(el("div", {class: "jacts"},
+      el("button", {text: "Ещё раз", onclick: () => { j.state = "wait"; renderJobs(); runQueue(); }}),
+      el("button", {text: "Изменить", onclick: () => toDraft(j)}),
+      el("button", {text: "Убрать", onclick: () => { jobs.splice(jobs.indexOf(j), 1); j.urls.forEach(u => URL.revokeObjectURL(u)); renderJobs(); renderHistory(); }})));
+    return box;
+  }));
+  clearInterval(ticker);
+  if (jobs.some(j => j.state === "run")) ticker = setInterval(() => {
+    const j = jobs.find(x => x.state === "run"); if (!j){ clearInterval(ticker); return; }
+    const n = $("jobs").querySelector('[data-job="' + j.id + '"] .js');
+    if (n) n.textContent = "Считаю… " + Math.round((Date.now() - j.t0) / 1000) + " с" + (j.urls.length ? " · обычно 10–30 с" : "");
+  }, 1000);
+}
+// Вернуть неудавшийся расчёт обратно в строку ввода, чтобы поправить подпись или фото.
+function toDraft(j){
+  jobs.splice(jobs.indexOf(j), 1);
+  if (fixing) stopFix();
+  pending.push(...j.files.map((f, i) => ({file: f, url: j.urls[i]})));
+  $("note").value = j.note; autosize(); dayChoice = j.day; renderDays(); refreshDock(); renderJobs();
+  $("note").focus();
 }
 
-function card(h){
-  const c = document.createElement("div"); c.className = "card";
-  c.textContent = (h.note ? (h.n ? "Подпись: " : "Записано текстом: ") + h.note + "\n\n" : "") + h.text + (h.fixes ? "\n\nПоправки: " + h.fixes.join("; ") : "");
-  return c;
-}
-
-// Кнопка «Исправить»: как «ответить» в мессенджере — нижняя строка ввода переключается на поправку
-// этого приёма пищи. Пишешь или говоришь, что не так, стрелка — расчёт пересчитывается и заменяется.
+// ---------- «Исправить»: как «ответить» в мессенджере ----------
 let fixing = null, draft = "";
-function fixBox(h){
-  const open = document.createElement("button"); open.className = "small"; open.textContent = "✏️ Исправить";
-  open.style.marginRight = "16px"; open.onclick = () => startFix(h);
-  return open;
-}
 function startFix(h){
   if (!fixing) draft = $("note").value;
   fixing = h;
-  $("replyName").textContent = mealName(h) + (h.totals ? " · " + h.totals.kcal + " ккал" : "");
+  $("replyName").textContent = mealName(h) + (h.totals ? " · " + nf(h.totals.kcal) + " ккал" : "");
   $("reply").hidden = false; $("dock").classList.add("fixing");
-  $("menu").hidden = true; $("plus").classList.remove("open");
-  const t = $("note"); t.value = ""; t.placeholder = "Что не так? Например: это кальмар, а не сыр";
-  t.dispatchEvent(new Event("input")); t.focus();
+  setPlus(false);
+  const t = $("note"); t.value = ""; t.placeholder = "Например: на весах 60 г";
+  autosize(); refreshDock(); t.focus();
 }
 function stopFix(){
   fixing = null; $("reply").hidden = true; $("dock").classList.remove("fixing");
   const t = $("note"); t.value = draft; draft = ""; t.placeholder = "Что съел?";
-  t.dispatchEvent(new Event("input"));
+  autosize(); refreshDock();
 }
 $("replyX").onclick = e => { e.preventDefault(); stopFix(); };
 async function sendFix(){
   const h = fixing, note = $("note").value.trim();
   if (!h || !note) return;
-  $("send").disabled = true; $("status").textContent = "Пересчитываю… (5–15 сек)";
+  $("send").disabled = true; busyAt = h.at; renderHistory();
+  $("note").blur(); stopFix(); toast("Пересчитываю…", {ms: 20000});
   try {
     const r = await api("fix", {at: h.at, note});
     hist = hist.map(x => x.at === h.at ? r.entry : x);
-    $("status").textContent = ""; $("note").blur(); stopFix();
-    openAt = r.entry.at; renderHistory();
+    busyAt = null; openSet.add(h.at); flashAt = h.at; renderHistory(); toast("Пересчитал");
   } catch (e){
-    $("status").textContent = "Ошибка: " + e.message + ". Текст остался, нажми стрелку ещё раз.";
-    refresh();
+    busyAt = null; renderHistory();
+    startFix(h); $("note").value = note; autosize(); refreshDock();
+    toast("Не пересчиталось: " + e.message);
   }
 }
 
-// Клавиатура телефона: строка ввода всегда прямо над ней. Android сам ужимает страницу
-// (interactive-widget), а на iPhone поднимаем панель на высоту клавиатуры по visualViewport.
-const vv = window.visualViewport;
-function fitDock(){
-  if (!vv) return;
-  const kb = Math.max(0, document.documentElement.clientHeight - vv.height - vv.offsetTop);
-  $("dock").style.transform = kb > 1 ? "translateY(" + (-kb) + "px)" : "";
-  $("dock").classList.toggle("kb", kb > 80 || document.activeElement === $("note"));
+// ---------- меню ----------
+const handSum = h => h ? f1(h.Lh) + " × " + f1(h.Wp) + " см" + (h.k && h.k !== 1 ? " · k " + f1(h.k) : "") : "";
+function updateMenu(){
+  $("mHandSum").textContent = ME && ME.handSet ? "Длина и ширина: " + handSum(ME.hand) : "Не замерена — считаю по средней ладони";
 }
-if (vv){ vv.addEventListener("resize", fitDock); vv.addEventListener("scroll", fitDock); }
-$("note").addEventListener("focus", () => setTimeout(fitDock, 300));
-$("note").addEventListener("blur", () => setTimeout(fitDock, 300));
+$("mHand").onclick = () => openHand();
+$("mHelp").onclick = () => openSheet("sHelp");
+$("helpToHand").onclick = () => openHand();
+$("copyMy").onclick = () => copyText(linkFor(token));
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); toast("Скопировано"); }
+  catch { toast("Не получилось скопировать — выдели ссылку пальцем"); }
+}
 
-const menuBtn = document.createElement("button");
-menuBtn.className = "menubtn"; menuBtn.setAttribute("aria-label", "Клиенты и моя ссылка");
-menuBtn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
-menuBtn.onclick = () => { $("sheet").hidden = false; };
-$("sheetClose").onclick = () => { $("sheet").hidden = true; };
-$("sheet").onclick = e => { if (e.target === $("sheet")) $("sheet").hidden = true; };
-function renderToday(){
-  const day = new Date().toDateString();
-  const sum = {kcal: 0, p: 0, f: 0, c: 0}; let n = 0;
-  for (const h of hist){
-    if (new Date(h.at).toDateString() !== day || !h.totals) continue;
-    n++; for (const k in sum) sum[k] += h.totals[k];
+// Клиенты (только тренер)
+let people = [];
+async function loadClients(){
+  try { people = (await api("people")).people; renderClients(); }
+  catch (e){ toast("Клиенты не загрузились: " + e.message); }
+}
+function renderClients(){
+  if (!people.length){ $("clientList").replaceChildren(el("div", {class: "muted", style: "margin-top:10px", text: "Пока никого. Добавь первого клиента."})); return; }
+  $("clientList").replaceChildren(...people.map(p => {
+    const rm = el("button", {class: "pill danger", text: "Закрыть доступ"});
+    let armed = false, t = null;
+    rm.onclick = async () => {
+      if (!armed){ armed = true; rm.textContent = "Точно закрыть?"; rm.classList.add("sure"); t = setTimeout(() => { armed = false; rm.textContent = "Закрыть доступ"; rm.classList.remove("sure"); }, 3000); return; }
+      clearTimeout(t);
+      try { await api("revoke", {who: p.token}); toast("Доступ для " + p.name + " закрыт"); loadClients(); } catch (e){ toast(e.message); }
+    };
+    return el("div", {class: "cl"},
+      el("div", {class: "cl-top"}, el("b", {text: p.name}), el("span", {class: "muted", text: p.hand ? "ладонь " + handSum(p.hand) : "ладонь не замерена"})),
+      el("div", {class: "cl-acts"},
+        el("button", {class: "pill", text: "📖 Дневник", onclick: () => openClient(p)}),
+        el("button", {class: "pill", text: "📏 Ладонь", onclick: () => openHand(p)}),
+        el("button", {class: "pill", text: "✉️ Ссылка", onclick: () => shareLink(linkFor(p.token), p.name)}),
+        rm));
+  }));
+}
+$("addClient").onclick = addClient;
+$("cname").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); addClient(); } });
+async function addClient(){
+  const name = $("cname").value.trim();
+  if (!name){ $("cname").focus(); toast("Впиши имя клиента"); return; }
+  const b = $("addClient"); b.disabled = true;
+  try {
+    const r = await api("invite", {name});
+    $("cname").value = ""; $("cname").blur();
+    await loadClients();
+    shareLink(linkFor(r.token), name);
+  } catch (e){ toast(e.message); }
+  finally { b.disabled = false; }
+}
+// Отправить клиенту ссылку: «Поделиться» iPhone; не открылось — копируем; не скопировалось — показываем.
+async function shareLink(link, name){
+  const text = (name ? name + ", твоя" : "Твоя") + " ссылка, чтобы считать еду по фото: " + link;
+  if (navigator.share){
+    try { await navigator.share({text}); return; } catch (e){ if (e.name === "AbortError") return; }
   }
-  const date = new Date().toLocaleDateString("ru-RU", {weekday: "long", day: "numeric", month: "long"});
-  $("today").innerHTML = '<div class="muted">Сегодня, ' + date + (n ? " · расчётов: " + n : "") + '</div>' +
-    '<div class="today-k">' + sum.kcal + ' ккал</div>' +
-    '<div class="today-m">Б ' + sum.p + ' · Ж ' + sum.f + ' · У ' + sum.c + '</div>';
-  $("today").append(menuBtn);
+  try { await navigator.clipboard.writeText(link); toast("Ссылка скопирована — отправь " + (name || "клиенту")); return; } catch {}
+  $("linkWho").textContent = "Отправь эту ссылку: " + (name || "клиенту");
+  $("linkText").textContent = link;
+  $("linkCopy").onclick = () => copyText(link);
+  openSheet("sLink");
+}
+async function openClient(p){
+  $("sClientT").textContent = "Дневник: " + p.name;
+  $("clientBody").replaceChildren(el("div", {class: "muted", style: "padding:20px 4px", text: "Загружаю…"}));
+  openSheet("sClient");
+  try {
+    const r = await api("client", {who: p.token});
+    const s = sumDay(r.history, new Date().toDateString());
+    const head = el("div", {class: "card"},
+      el("div", {class: "muted", text: "Сегодня" + (s.n ? " · приёмов: " + s.n : "")}),
+      el("div", {class: "t-k"}, nf(s.kcal), " ", el("small", {text: "ккал"})),
+      el("div", {class: "macros"}, macroChips(s)),
+      el("div", {class: "muted", style: "margin-top:10px", text: r.hand ? "Ладонь: " + handSum(r.hand) : "Ладонь не замерена: считаю по средней"}));
+    $("clientBody").replaceChildren(head, ...(r.history.length ? dayList(r.history, {readOnly: true}) : [el("div", {class: "muted", style: "margin-top:16px", text: "Пока нет записей."})]));
+  } catch (e){ $("clientBody").replaceChildren(el("div", {class: "muted", style: "padding:20px 4px", text: "Не загрузилось: " + e.message})); }
 }
 
-let openAt = null;
-const toBottom = () => requestAnimationFrame(() => window.scrollTo({top: document.body.scrollHeight, behavior: "smooth"}));
-// Короткое название: что съел, из строк «1. Творог 5% с бананом — 250 г — …».
-function mealName(h){
-  const names = (h.text || "").split("\n").map(l => l.match(/^\s*\d+[.)]\s*(.+?)\s+[—–-]\s/)).filter(Boolean).map(m => m[1]);
-  if (names.length) return names.join(", ");
-  return h.note || (h.n ? "фото" : "запись");
+// ---------- замеры ладони ----------
+const FIELDS = [
+  {id: "Lh", n: 1, color: "#16a34a", label: "Длина кисти", hint: "от складки на запястье до кончика среднего пальца", min: 12, max: 25, need: true},
+  {id: "Wp", n: 2, color: "#2563eb", label: "Ширина ладони", hint: "поперёк по костяшкам, без большого пальца", min: 6, max: 12, need: true},
+  {id: "Lp", n: 3, color: "#d97706", label: "Длина ладони", hint: "от складки на запястье до основания среднего пальца", min: 7, max: 14, of: "Lh", k: .56},
+  {id: "Lm", n: 4, color: "#9333ea", label: "Длина среднего пальца", hint: "от основания до кончика", min: 5, max: 11, of: "Lh", k: .44},
+  {id: "Wi", n: 5, color: "#db2777", label: "Ширина указательного пальца", hint: "у среднего сустава", min: 1.2, max: 2.6, of: "Wp", k: .21},
+  {id: "Wt", n: 6, color: "#0891b2", label: "Ширина большого пальца", hint: "по ногтю", min: 1.4, max: 3, of: "Wp", k: .24},
+  {id: "Lt", n: 7, color: "#65a30d", label: "Ногтевая фаланга большого", hint: "от сгиба до кончика", min: 2.2, max: 4.8, of: "Lh", k: .205}
+];
+document.querySelectorAll("[data-handfig]").forEach(n => n.append($("handSvg").content.cloneNode(true)));
+function fieldEl(f){
+  const inp = el("input", {id: "h_" + f.id, inputmode: "decimal", enterkeyhint: "next", autocomplete: "off", placeholder: f.need ? "0,0" : ""});
+  inp.addEventListener("input", () => { inp.closest(".field").classList.remove("bad"); inp.closest(".field").querySelector(".err").textContent = ""; if (f.need) hintEstimates(); });
+  return el("div", {class: "field"},
+    el("label", {for: "h_" + f.id}, el("span", {class: "num", style: "background:" + f.color, text: f.n}), f.label),
+    el("div", {class: "hint", text: f.hint}),
+    el("div", {class: "inp"}, inp, el("span", {text: "см"})),
+    el("div", {class: "err"}));
 }
-
-function renderHistory(){
-  renderToday();
-  const nodes = []; let lastDay = null;
-  for (const h of hist.slice(0, 60).reverse()){
-    const day = new Date(h.at).toDateString();
-    if (day !== lastDay){
-      lastDay = day;
-      const dayKcal = hist.filter(x => new Date(x.at).toDateString() === day && x.totals).reduce((a, x) => a + x.totals.kcal, 0);
-      const hd = document.createElement("div"); hd.className = "muted"; hd.style.cssText = "margin-top:20px;font-weight:600";
-      hd.textContent = new Date(h.at).toLocaleDateString("ru-RU", {day: "numeric", month: "long"}) + " · " + dayKcal + " ккал";
-      nodes.push(hd);
-    }
-    nodes.push(entry(h));
+$("hNeed").replaceChildren(...FIELDS.filter(f => f.need).map(fieldEl));
+$("hMore").replaceChildren(...FIELDS.filter(f => !f.need).map(fieldEl));
+// Enter переводит на следующее поле, на последнем — прячет клавиатуру.
+$("sHand").addEventListener("keydown", e => {
+  if (e.key !== "Enter" || !e.target.matches("input")) return;
+  e.preventDefault();
+  const all = [...$("sHand").querySelectorAll("input:not([type=file])")].filter(i => !i.closest("[hidden]"));
+  const next = all[all.indexOf(e.target) + 1];
+  if (next) next.focus(); else e.target.blur();
+});
+function hintEstimates(){
+  const base = {Lh: parseNum($("h_Lh").value), Wp: parseNum($("h_Wp").value)};
+  for (const f of FIELDS) if (!f.need){
+    const v = base[f.of];
+    $("h_" + f.id).placeholder = v > 0 ? "≈ " + f1(v * f.k) + " по пропорциям" : "по пропорциям";
   }
-  $("hist").replaceChildren(...nodes);
-  openAt = null;
 }
-
-function entry(h){
-  const d = document.createElement("details"); d.style.marginTop = "10px";
-  d.className = "meal"; if (h.at === openAt) d.open = true;
-  const s = document.createElement("summary");
-  const sp = (cls, txt) => { const e = document.createElement("span"); e.className = cls; e.textContent = txt; return e; };
-  s.append(sp("t", new Date(h.at).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"})), sp("nm", mealName(h)), sp("kc", h.totals ? h.totals.kcal + " ккал" : ""));
-  const c = card(h);
-  const remove = async ev => {
-    ev.preventDefault(); ev.stopPropagation();
-    if (!confirm("Удалить этот приём пищи из истории и из итога дня?")) return;
-    try { hist = (await api("delete", {at: h.at})).history; renderHistory(); }
-    catch (e){ alert("Не удалось удалить: " + e.message); }
-  };
-  const x = document.createElement("button"); x.className = "delx"; x.textContent = "🗑"; x.setAttribute("aria-label", "Удалить приём пищи");
-  x.onclick = remove; s.append(x);
-  const del = document.createElement("button"); del.className = "small"; del.textContent = "Удалить этот приём пищи";
-  del.onclick = remove;
-  d.append(s, c, fixBox(h), del); return d;
+let handTarget = null;
+function openHand(p){
+  handTarget = p || null;
+  const hand = p ? p.hand : (ME && ME.handSet ? ME.hand : null);
+  $("sHandT").textContent = p ? "Ладонь: " + p.name : "Моя ладонь";
+  $("hIntro").textContent = p ? "Замеры клиента. По ним его ладонь становится линейкой для еды." : "По этим размерам ладонь становится линейкой для еды. Ладонь вверх на столе, пальцы вместе.";
+  $("hNote").textContent = "";
+  fillHand(hand || {}, false, true);
+  openSheet("sHand");
+  $("sHand").querySelector(".sheet-body").scrollTop = 0;
 }
+function fillHand(hand, flash, reset){
+  let more = false;
+  for (const f of FIELDS){
+    const inp = $("h_" + f.id), v = hand[f.id];
+    if (v != null){ inp.value = f1(v); if (!f.need) more = true; } else if (reset) inp.value = "";
+    const fe = inp.closest(".field"); fe.classList.remove("bad", "new"); fe.querySelector(".err").textContent = "";
+    if (flash && v != null){ void fe.offsetWidth; fe.classList.add("new"); }
+  }
+  if (reset) $("h_k").value = hand.k && hand.k !== 1 ? f1(hand.k) : "";
+  $("hKSum").textContent = $("h_k").value ? "× " + $("h_k").value : "";
+  hintEstimates();
+  const acc = $("hMoreAcc"), open = acc.classList.contains("open");
+  if (reset){ acc.classList.toggle("open", more); acc.querySelector(".acc-b").hidden = !more; }
+  else if (more && !open) toggleAcc(acc, true, true);
+}
+$("h_k").addEventListener("input", () => { $("hKSum").textContent = $("h_k").value ? "× " + $("h_k").value : ""; });
+$("hFile").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  const box = $("hMeasure"); box.classList.add("busy"); $("hMeasureT").textContent = "Меряю по фото… 10–20 с";
+  try {
+    const url = await resize(f, 1600, .85);
+    const r = await api("measure", {image: url.split(",")[1]});
+    fillHand(r.hand, true, false);
+    $("hNote").textContent = "Замерил по фото. Проверь цифры" + (r.note ? " (" + r.note + ")" : "") + " и нажми «Сохранить».";
+    setTimeout(() => sheetScrollTo($("hNote")), 60);
+    toast("Готово — проверь цифры");
+  } catch (err){ toast(err.message, {ms: 5000}); }
+  finally { box.classList.remove("busy"); $("hMeasureT").textContent = "Замерить по фото с банковской картой"; }
+};
+$("hSave").onclick = async () => {
+  const vals = {}; let bad = null;
+  const fail = (fe, msg) => { fe.classList.add("bad"); fe.querySelector(".err").textContent = msg; if (!bad) bad = fe; };
+  for (const f of FIELDS){
+    const inp = $("h_" + f.id), fe = inp.closest(".field"), raw = inp.value.trim();
+    fe.classList.remove("bad"); fe.querySelector(".err").textContent = "";
+    if (!raw){ if (f.need) fail(fe, "Нужно заполнить"); continue; }
+    const v = parseNum(raw);
+    if (!(v >= f.min && v <= f.max)){ fail(fe, "Похоже на опечатку: нужно от " + f1(f.min) + " до " + f1(f.max) + " см"); continue; }
+    vals[f.id] = v;
+  }
+  const kraw = $("h_k").value.trim();
+  if (kraw){
+    const k = parseNum(kraw), fe = $("h_k").closest(".field");
+    if (!(k >= 0.5 && k <= 2)) fail(fe, "Поправка от 0,5 до 2"); else vals.k = k;
+  }
+  if (bad){
+    const acc = bad.closest(".acc"); if (acc && !acc.classList.contains("open")) toggleAcc(acc, true);
+    setTimeout(() => revealInSheet(bad), 300);
+    return;
+  }
+  const b = $("hSave"); b.disabled = true; b.replaceChildren(el("span", {class: "spin"}), "Сохраняю…");
+  try {
+    const r = await api("hand", {hand: vals, who: handTarget ? handTarget.token : undefined});
+    if (handTarget){ handTarget.hand = r.hand; renderClients(); toast("Замеры сохранены: " + handTarget.name); }
+    else { ME.hand = r.hand; ME.handSet = true; renderBanner(); updateMenu(); toast("Сохранил — теперь считаю по твоей ладони"); }
+    closeSheet("sHand");
+  } catch (e){ toast(e.message, {ms: 5000}); }
+  finally { b.disabled = false; b.textContent = "Сохранить"; }
+};
 
 // Чужие плашки, которые хостинг вставляет поверх страницы (например «Powered by Netlify»), прячем.
 // Всё, что уже есть на странице к этому моменту, — наше; прячем только то, что добавят позже.
 const own = new Set([...document.body.children, ...document.documentElement.children]);
 function hideForeign(){
-  for (const el of [...document.body.children, ...document.documentElement.children]){
-    if (el === document.body || el === document.head || own.has(el) || /^(SCRIPT|STYLE|LINK|META|NOSCRIPT)$/.test(el.tagName)) continue;
-    el.style.setProperty("display", "none", "important");
+  for (const node of [...document.body.children, ...document.documentElement.children]){
+    if (node === document.body || node === document.head || own.has(node) || /^(SCRIPT|STYLE|LINK|META|NOSCRIPT)$/.test(node.tagName)) continue;
+    node.style.setProperty("display", "none", "important");
   }
 }
 hideForeign();
 new MutationObserver(hideForeign).observe(document.documentElement, {childList: true});
 new MutationObserver(hideForeign).observe(document.body, {childList: true});
-start().then(() => { refresh(); window.scrollTo(0, document.body.scrollHeight); });
+syncViewport();
+start().then(() => { syncViewport(); toBottom(false); });
 </script>
 </body>
 </html>
