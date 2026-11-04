@@ -1,5 +1,5 @@
 // Сервер страницы foto/ (Netlify Edge Function: ожидание ответа модели не тратит лимит времени).
-// Считает через Gemini API (ключ в переменной GEMINI_API_KEY в Netlify), пускает по личным ссылкам,
+// Считает через OpenRouter (Claude Sonnet; ключ в переменной OPENROUTER_API_KEY в Netlify), пускает по личным ссылкам,
 // считает еду по фото и хранит историю каждого человека.
 import { getStore } from "@netlify/blobs";
 import { SYSTEM } from "../shared/system-prompt.js";
@@ -26,7 +26,7 @@ async function handle(req) {
   }
   if (route === "setup") {
     if (Object.values(users).some(u => u.owner)) return json({ error: "Сервер уже настроен" }, 409);
-    if (!geminiKey()) return json({ error: "Сначала добавь GEMINI_API_KEY в настройках Netlify" }, 400);
+    if (!apiKey()) return json({ error: "Сначала добавь OPENROUTER_API_KEY в настройках Netlify" }, 400);
     const t = newToken();
     users[t] = { name: "Михаил", owner: true, created: Date.now() };
     await store.setJSON("users", users);
@@ -119,46 +119,55 @@ async function handle(req) {
   return json({ error: "Неизвестный запрос" }, 404);
 }
 
-// Модели Gemini по очереди: если первая занята или нет квоты — пробуем следующую.
-// Список можно задать переменной GEMINI_MODEL в Netlify (через запятую).
-const MODELS = () => (Netlify.env.get("GEMINI_MODEL") || "gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite")
+// Считаем через OpenRouter (по умолчанию Claude Sonnet 5.5). Ключ — переменная OPENROUTER_API_KEY в Netlify.
+// Модель можно сменить переменной OPENROUTER_MODEL (через запятую — запасные, если первая недоступна).
+const MODELS = () => (Netlify.env.get("OPENROUTER_MODEL") || "anthropic/claude-sonnet-5.5")
   .split(",").map(s => s.trim()).filter(Boolean);
-const geminiKey = () => Netlify.env.get("GEMINI_API_KEY") || "";
-// Поиск Google в бесплатном тарифе недоступен: включается переменной GEMINI_SEARCH=1 (платный тариф).
-const useSearch = () => Netlify.env.get("GEMINI_SEARCH") === "1";
+const apiKey = () => Netlify.env.get("OPENROUTER_API_KEY") || "";
+// Веб-поиск OpenRouter платный отдельно: включается переменной OPENROUTER_SEARCH=1.
+const useSearch = () => Netlify.env.get("OPENROUTER_SEARCH") === "1";
 const SYSTEM_NO_SEARCH = SYSTEM.replace(/ПОИСК В ИНТЕРНЕТЕ\n[^\n]*\n\n/, "");
 
 async function askModel(content) {
-  const key = geminiKey();
-  if (!key) return { error: "На сервере нет ключа Gemini (переменная GEMINI_API_KEY в Netlify)" };
+  const key = apiKey();
+  if (!key) return { error: "На сервере нет ключа OpenRouter (переменная OPENROUTER_API_KEY в Netlify)" };
   const parts = content.map(c => c.type === "image"
-    ? { inline_data: { mime_type: c.source.media_type, data: c.source.data } }
-    : { text: c.text });
+    ? { type: "image_url", image_url: { url: "data:" + c.source.media_type + ";base64," + c.source.data } }
+    : { type: "text", text: c.text });
   const search = useSearch();
-  const payload = JSON.stringify({
-    system_instruction: { parts: [{ text: search ? SYSTEM : SYSTEM_NO_SEARCH }] },
-    contents: [{ role: "user", parts }],
-    ...(search ? { tools: [{ google_search: {} }] } : {}),
-    generationConfig: { maxOutputTokens: 8192, temperature: 0.4 }
+  const models = MODELS();
+  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "authorization": "Bearer " + key,
+      "HTTP-Referer": "https://hammer-kbzhu.netlify.app",
+      "X-Title": "Hammer KBZHU"
+    },
+    body: JSON.stringify({
+      model: models[0],
+      ...(models.length > 1 ? { models } : {}),
+      messages: [
+        { role: "system", content: search ? SYSTEM : SYSTEM_NO_SEARCH },
+        { role: "user", content: parts }
+      ],
+      ...(search ? { plugins: [{ id: "web", max_results: 3 }] } : {}),
+      max_tokens: 4096,
+      temperature: 0.4
+    })
   });
-  let r, data, lastErr = "";
-  for (const model of MODELS()) {
-    r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: payload
-    });
-    data = await r.json().catch(() => ({}));
-    if (r.ok) break;
-    lastErr = (data.error && data.error.message) || ("Ошибка Gemini API " + r.status);
-    if (![404, 429, 500, 503].includes(r.status)) break;
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.error) {
+    const msg = (data.error && data.error.message) || ("Ошибка OpenRouter " + r.status);
+    if (r.status === 402) return { error: "На OpenRouter кончились деньги: пополни баланс" };
+    if (r.status === 401) return { error: "OpenRouter не принял ключ: проверь OPENROUTER_API_KEY в Netlify" };
+    return { error: msg };
   }
-  if (!r.ok) return { error: lastErr };
-  if (data.promptFeedback && data.promptFeedback.blockReason) return { error: "Модель отказалась отвечать на эти фото" };
-  const cand = (data.candidates || [])[0];
-  if (!cand || ["SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "IMAGE_SAFETY"].includes(cand.finishReason))
-    return { error: "Модель отказалась отвечать на эти фото" };
-  const raw = ((cand.content && cand.content.parts) || []).filter(p => p.text && !p.thought).map(p => p.text).join("").trim();
+  const choice = (data.choices || [])[0];
+  if (!choice || choice.finish_reason === "content_filter") return { error: "Модель отказалась отвечать на эти фото" };
+  let raw = choice.message && choice.message.content;
+  if (Array.isArray(raw)) raw = raw.map(p => p.text || "").join("");
+  raw = String(raw || "").trim();
   if (!raw) return { error: "Пустой ответ модели, попробуй ещё раз" };
   const m = raw.match(/#ИТОГ\s+ккал=(\d+)\s+б=(\d+)\s+ж=(\d+)\s+у=(\d+)/);
   return {
