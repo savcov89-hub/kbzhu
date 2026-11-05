@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Сравнение моделей</title>
+<style>
+:root{--bg:#f6f6f4;--card:#fff;--text:#1b1b1a;--muted:#6b6b66;--border:#deded8;--accent:#1f7a4d;--bad:#b3261e}
+@media (prefers-color-scheme: dark){:root{--bg:#141413;--card:#1f1f1d;--text:#eeeeea;--muted:#a3a39b;--border:#3a3a36;--accent:#4cc38a;--bad:#f2b8b5}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,system-ui,sans-serif;padding:16px;padding-bottom:40px;max-width:760px;margin-inline:auto}
+h1{font-size:20px;margin:0 0 4px}
+p.hint{color:var(--muted);font-size:14px;margin:0 0 12px}
+.box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:12px}
+label.m{display:flex;gap:8px;align-items:center;padding:6px 0;font-size:15px}
+label.m small{color:var(--muted)}
+textarea,input[type=text]{width:100%;font:inherit;font-size:16px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:12px 16px;background:var(--accent);color:#fff;width:100%;margin-top:8px}
+button.sec{background:transparent;color:var(--accent);border:1px solid var(--border)}
+button:disabled{opacity:.5}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px}
+.res{border-top:1px solid var(--border);padding:10px 0}
+.res:first-child{border-top:0}
+.res b{font-size:15px}
+.kc{font-size:20px;font-weight:700}
+.meta{color:var(--muted);font-size:13px}
+.err{color:var(--bad)}
+details summary{color:var(--accent);font-size:14px;cursor:pointer;margin-top:4px}
+details pre{white-space:pre-wrap;font:13px/1.4 inherit;font-family:inherit;margin:6px 0 0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:4px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+</style>
+</head>
+<body>
+<h1>Сравнение моделей</h1>
+<p class="hint">Одно фото считают сразу несколько моделей. В дневник ничего не пишется. Цена — то, что OpenRouter списал за этот расчёт.</p>
+
+<div class="box">
+  <input type="file" id="file" accept="image/*" multiple>
+  <div class="thumbs" id="thumbs"></div>
+  <textarea id="note" rows="2" placeholder="Подпись (необязательно), как в приложении"></textarea>
+  <input type="text" id="truth" placeholder="Правильный ответ, если знаешь: например 164 ккал или 150 г" style="margin-top:8px">
+</div>
+
+<div class="box" id="models"></div>
+
+<button id="go">Посчитать всеми</button>
+<div class="box" id="out" hidden style="margin-top:12px"></div>
+
+<div class="box" id="logbox" hidden>
+  <b>Все прогоны</b>
+  <div id="log"></div>
+  <button class="sec" id="copy">Скопировать итоги для Claude</button>
+  <button class="sec" id="clear">Очистить</button>
+</div>
+
+<script>
+const MODELS = [
+  ["anthropic/claude-sonnet-5.5", "Sonnet 5.5, как сейчас (без рассуждения)"],
+  ["anthropic/claude-sonnet-5.5@low", "Sonnet 5.5, рассуждение низкое"],
+  ["anthropic/claude-sonnet-5.5@high", "Sonnet 5.5, рассуждение высокое"],
+  ["anthropic/claude-haiku-5.5", "Haiku 5.5"],
+  ["anthropic/claude-haiku-5.5@medium", "Haiku 5.5, рассуждение среднее"],
+  ["google/gemini-3.8-flash", "Gemini 3.8 Flash"],
+  ["google/gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite"]
+];
+const DEFAULT_ON = ["anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-5.5@high", "anthropic/claude-haiku-5.5", "google/gemini-3.8-flash"];
+const $ = id => document.getElementById(id);
+const ls = { get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } }, set(k, v){ try { localStorage.setItem(k, v); } catch {} } };
+const qs = new URLSearchParams(location.search).get("t");
+if (qs) ls.set("token", qs);
+const token = ls.get("token", "");
+let images = [];
+let log = []; try { log = JSON.parse(ls.get("cmp-log", "[]")); } catch {}
+
+$("models").innerHTML = "<b>Модели</b> <span class='meta'>(не больше 6 за раз)</span>" + MODELS.map(([id, name]) =>
+  `<label class="m"><input type="checkbox" value="${id}" ${DEFAULT_ON.includes(id) ? "checked" : ""}> <span>${name}<br><small>${id}</small></span></label>`).join("");
+
+function resize(file, side = 1024, q = .72){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, side / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL("image/jpeg", q));
+    };
+    img.onerror = () => reject(new Error("Не открылось фото"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+$("file").onchange = async e => {
+  images = [];
+  for (const f of [...e.target.files].slice(0, 6)) images.push(await resize(f));
+  $("thumbs").innerHTML = images.map(u => `<img src="${u}">`).join("");
+};
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const money = c => c == null ? "?" : "$" + c.toFixed(4) + " · за 1000 ≈ $" + (c * 1000).toFixed(1);
+
+$("go").onclick = async () => {
+  if (!token) return alert("Открой страницу по своей личной ссылке: …/foto/compare.html?t=твой_код");
+  const models = [...document.querySelectorAll("#models input:checked")].map(i => i.value).slice(0, 6);
+  if (!images.length) return alert("Выбери фото");
+  if (!models.length) return alert("Отметь модели");
+  $("go").disabled = true; $("go").textContent = "Считают… до минуты";
+  $("out").hidden = false; $("out").innerHTML = "<span class='meta'>Ждём ответы всех моделей…</span>";
+  try {
+    const r = await fetch("/api/compare", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token, images: images.map(u => u.split(",")[1]), note: $("note").value, models }) });
+    const d = JSON.parse((await r.text()).trim() || "{}");
+    if (d.error) throw new Error(d.error);
+    $("out").innerHTML = d.results.map(x => {
+      const name = (MODELS.find(m => m[0] === x.model) || [x.model, x.model])[1];
+      if (x.error) return `<div class="res"><b>${esc(name)}</b><div class="err">${esc(x.error)}</div></div>`;
+      const t = x.totals, u = x.usage || {};
+      return `<div class="res"><b>${esc(name)}</b>
+        <div class="kc">${t ? t.kcal + " ккал" : "нет итога"} <span class="meta">${t ? `Б ${t.p} · Ж ${t.f} · У ${t.c}` : ""}</span></div>
+        <div class="meta">${money(u.cost)} · ${(x.ms / 1000).toFixed(1)} с · токены ${u.in || "?"}→${u.out || "?"}${u.think ? " (думал " + u.think + ")" : ""}</div>
+        <details><summary>Ответ модели</summary><pre>${esc(x.text)}</pre></details></div>`;
+    }).join("");
+    log.push({ when: new Date().toISOString(), note: $("note").value, truth: $("truth").value, photos: images.length,
+      results: d.results.map(x => ({ model: x.model, kcal: x.totals && x.totals.kcal, bju: x.totals && [x.totals.p, x.totals.f, x.totals.c],
+        cost: x.usage && x.usage.cost, sec: Math.round(x.ms / 100) / 10, in: x.usage && x.usage.in, out: x.usage && x.usage.out,
+        think: x.usage && x.usage.think, error: x.error, text: x.text && x.text.slice(0, 600) })) });
+    ls.set("cmp-log", JSON.stringify(log.slice(-30)));
+    drawLog();
+  } catch (e) {
+    $("out").innerHTML = `<div class="err">${esc(e.message)}</div>`;
+  } finally {
+    $("go").disabled = false; $("go").textContent = "Посчитать всеми";
+  }
+};
+function drawLog(){
+  $("logbox").hidden = !log.length;
+  $("log").innerHTML = log.map((l, i) => `<div class="res"><div class="meta">${i + 1}. ${esc(l.note || "без подписи")}${l.truth ? " · верно: " + esc(l.truth) : ""}</div>
+    <table>${l.results.map(r => `<tr><td>${esc(r.model.split("/")[1])}</td><td>${r.kcal ?? (r.error ? "ошибка" : "—")}</td><td>${r.cost != null ? "$" + r.cost.toFixed(4) : ""}</td></tr>`).join("")}</table></div>`).join("");
+}
+drawLog();
+$("copy").onclick = async () => {
+  const txt = JSON.stringify(log, null, 1);
+  try { await navigator.clipboard.writeText(txt); alert("Скопировано. Вставь в чат с Claude."); }
+  catch { prompt("Скопируй вручную:", txt); }
+};
+$("clear").onclick = () => { if (confirm("Очистить все прогоны?")) { log = []; ls.set("cmp-log", "[]"); drawLog(); } };
+</script>
+</body>
+</html>
