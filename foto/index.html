@@ -668,8 +668,11 @@ let kbOpen = false, lastKb = -1, touching = false;
 function nearBottom(){ return innerHeight + scrollY >= document.documentElement.scrollHeight - 90; }
 // Пока палец на экране, страницу сами не двигаем: иначе при прокрутке у низа её тянуло обратно вниз.
 addEventListener("touchstart", () => { touching = true; }, {passive: true});
-addEventListener("touchend", () => { touching = false; }, {passive: true});
-addEventListener("touchcancel", () => { touching = false; }, {passive: true});
+addEventListener("touchend", () => { touching = false; lastTouch = Date.now(); }, {passive: true});
+addEventListener("touchcancel", () => { touching = false; lastTouch = Date.now(); }, {passive: true});
+// После того как палец отпустил, лента ещё катится по инерции — это тоже прокрутка пользователя.
+let lastTouch = 0;
+const userScrolling = () => touching || Date.now() - lastTouch < 1200;
 const typingNow = () => { const a = document.activeElement; return !!(a && a.matches && a.matches("input,textarea")); };
 function syncViewport(){
   const H = document.documentElement.clientHeight;
@@ -686,7 +689,7 @@ function syncViewport(){
   if (open !== kbOpen){ kbOpen = open; document.body.classList.toggle("kb", open); $("today").classList.toggle("compact", open); }
   padBottom();
   // К низу прижимаем только когда клавиатура открылась или закрылась, а не на каждую прокрутку.
-  if (kbChanged && wasBottom && !sheets.length && !touching) toBottom(false);
+  if (kbChanged && wasBottom && !sheets.length && !userScrolling()) toBottom(false);
   const ae = document.activeElement;
   if (ae && ae.closest && ae.closest(".sheet") && ae.matches("input,textarea")) revealInSheet(ae);
 }
@@ -823,6 +826,12 @@ function mic(btn, field){
   };
 }
 mic($("noteMic"), $("note"));
+// Остановить диктовку, не дав ей дописать текст: поздний результат распознавания возвращал отправленный текст в поле.
+function stopVoice(){
+  const a = active; if (!a) return;
+  active = null; a.btn.classList.remove("on");
+  try { shared && shared.abort(); } catch {}
+}
 
 // ---------- запуск ----------
 async function start(){
@@ -1000,8 +1009,27 @@ function refreshDock(){
     el("button", {"aria-label": "Убрать фото", text: "✕", onclick: () => { URL.revokeObjectURL(p.url); pending.splice(i, 1); refreshDock(); }}))));
   padBottom();
 }
+// Очистить строку ввода после отправки. Диктовка iPhone (кнопка 🎤 на клавиатуре) иногда вставляет
+// распознанный текст ещё раз уже после очистки — такой повтор в первые 2 секунды тоже убираем.
+let justSent = null;
+function clearNote(sent){
+  stopVoice();
+  const t = $("note"); t.value = ""; draft = "";
+  justSent = sent ? {text: sent, until: Date.now() + 2000} : null;
+  autosize(); refreshDock();
+}
 function autosize(){ const t = $("note"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 132) + "px"; }
-$("note").addEventListener("input", () => { autosize(); refreshDock(); });
+$("note").addEventListener("input", () => {
+  const t = $("note");
+  if (justSent && Date.now() < justSent.until){
+    const v = t.value.trim(), s = justSent.text;
+    if (v.startsWith(s)){
+      // Дописанное сверх отправленного оставляем: это уже новая фраза.
+      t.value = v.startsWith(s) ? v.slice(s.length).trimStart() : "";
+    }
+  } else justSent = null;
+  autosize(); refreshDock();
+});
 $("note").addEventListener("keydown", e => {
   // Enter на компьютере отправляет, Shift+Enter — новая строка. На телефоне Enter — обычный перенос.
   if (e.key === "Enter" && !e.shiftKey && matchMedia("(hover:hover) and (pointer:fine)").matches){ e.preventDefault(); if (!$("send").disabled) $("send").click(); }
@@ -1080,7 +1108,8 @@ function send(){
   const note = $("note").value.trim();
   if (!note && !pending.length) return;
   jobs.push({id: ++jobSeq, files: pending.map(p => p.file), urls: pending.map(p => p.url), note, day: dayChoice, state: "wait"});
-  pending = []; $("note").value = ""; autosize(); dayChoice = "auto"; renderDays(); setPlus(false); refreshDock();
+  clearNote(note);
+  pending = []; dayChoice = "auto"; renderDays(); setPlus(false); refreshDock();
   if (navigator.vibrate) navigator.vibrate(8);
   renderJobs(); renderHistory(); toBottom(); runQueue();
 }
@@ -1106,7 +1135,7 @@ async function runJob(j){
     jobs.splice(jobs.indexOf(j), 1); j.urls.forEach(u => URL.revokeObjectURL(u));
     const atBottom = nearBottom();
     addEntry(r.entry); renderJobs();
-    if (atBottom) toBottom();
+    if (atBottom && !userScrolling()) toBottom();
   } catch (e){
     j.state = "err"; j.err = e.message; renderJobs();
   }
@@ -1162,7 +1191,7 @@ async function sendFix(){
   const h = fixing, note = $("note").value.trim();
   if (!h || !note) return;
   $("send").disabled = true; busyAt = h.at; renderHistory();
-  $("note").blur(); stopFix(); toast("Пересчитываю…", {ms: 20000});
+  stopVoice(); $("note").blur(); stopFix(); toast("Пересчитываю…", {ms: 20000});
   try {
     const r = await api("fix", {at: h.at, note});
     hist = hist.map(x => x.at === h.at ? r.entry : x);
