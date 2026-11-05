@@ -6,3 +6,7 @@
   from = "/"
   to = "/foto/"
   status = 302
+
+# Тест моделей только для превью (tools/model-test); в рабочий сайт не сливать.
+[[plugins]]
+  package = "./tools/model-test"
