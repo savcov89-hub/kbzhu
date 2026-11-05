@@ -19,12 +19,6 @@ const dayKey = () => new Date().toISOString().slice(0, 10);
 async function handle(req) {
   const url = new URL(req.url);
   const route = url.pathname.replace(/^\/api\//, "");
-  // Только превью теста моделей (ветка не сливается): строка итога пишется в журнал Netlify.
-  if (route === "mtlog" && url.hostname.includes("--")) {
-    const b = await req.json().catch(() => ({}));
-    console.log("MT" + b.i + " " + String(b.l).slice(0, 3000));
-    return json({ ok: true });
-  }
   const store = getStore({ name: "foto", consistency: "strong" });
   const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
   const token = body.token || url.searchParams.get("t") || "";
