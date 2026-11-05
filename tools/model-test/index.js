@@ -1,6 +1,6 @@
 // Тест моделей при сборке превью Netlify: те же фото и та же инструкция, что в приложении, разными моделями OpenRouter.
 // Работает только в deploy-preview, ключ берётся из OPENROUTER_API_KEY и никуда не выводится. Итог — в сводке деплоя.
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { buildSystem } from "../../netlify/shared/system-prompt.js";
 import { OWNER_HAND } from "../../netlify/shared/hand.js";
 
@@ -74,10 +74,15 @@ export const onPreBuild = async ({ utils }) => {
     " think " + r.think + ", поиск " + r.searched + ", уверенность " + r.conf + "\n" + r.text.slice(0, 700)).join("\n")).join("\n\n");
   console.log(summary);
   utils.status.show({ title: "Тест моделей", summary: summary.slice(0, 4000), text: text.slice(0, 60000) });
-  // Сводка деплоя не видна снаружи, поэтому итог отдаём в сообщении об ошибке сборки (превью не нужно).
-  const items = r => (r.text || "").split("\n").filter(l => /^\d+\./.test(l.trim())).map(l => l.trim().slice(0, 70)).join(" / ");
-  const compact = all.map(t => "[" + t.id + "] " + t.results.map(r => r.error ? short(r.spec) + ": ERR " + r.error.slice(0, 80)
-    : short(r.spec) + ": " + r.kcal + "к $" + Number(r.cost || 0).toFixed(4) + " " + r.sec + "с out" + r.out + " th" + r.think +
-      (r.searched ? "" : " nosearch") + " ув:" + r.conf + " | " + items(r)).join(" || ")).join(" #### ");
-  utils.build.failBuild("MODELTEST " + compact.slice(0, 9000));
+  // Сводка деплоя не видна снаружи. Кладём итог в файл превью, а корневая страница превью (её открывает робот
+  // скриншотов Netlify) отправляет его в /api/mtlog, который пишет его в журнал запросов Netlify.
+  const items = r => (r.text || "").split("\n").filter(l => /^\d+\./.test(l.trim())).map(l => l.trim().slice(0, 90)).join(" / ");
+  const lines = [];
+  for (const t of all) for (const r of t.results) lines.push("[" + t.id + "] " + (r.error ? short(r.spec) + ": ERR " + r.error
+    : short(r.spec) + ": " + r.kcal + "к БЖУ " + r.bju + " $" + Number(r.cost || 0).toFixed(5) + " " + r.sec + "с in" + r.in + " out" + r.out + " th" + r.think +
+      (r.searched ? "" : " nosearch") + " ув:" + r.conf + " | " + items(r)));
+  writeFileSync("model-test-results.json", JSON.stringify(lines));
+  writeFileSync("index.html", '<!doctype html><meta charset="utf-8"><title>test</title><body>model test<script>' +
+    'fetch("/model-test-results.json").then(r=>r.json()).then(a=>Promise.all(a.map((l,i)=>fetch("/api/mtlog",{method:"POST",body:JSON.stringify({i,l})}))))' +
+    '.then(()=>document.body.append(" sent"));</script>');
 };
