@@ -4,6 +4,7 @@
 import { getStore } from "@netlify/blobs";
 import { buildSystem } from "../shared/system-prompt.js";
 import { cleanHand, handOf, HAND_FIELDS } from "../shared/hand.js";
+import { cleanFood, parseFoodTags, upsertFoods } from "../shared/foods.js";
 
 const DAILY_LIMIT = 40;      // расчётов на человека в день
 const MEASURE_LIMIT = 10;    // замеров ладони по фото на человека в день
@@ -102,6 +103,22 @@ async function handle(req) {
     return json({ hand, note: String(data.note || "").slice(0, 200) });
   }
 
+  // Частые продукты: общий список проверенных КБЖУ, модель сверяется с ним при каждом расчёте.
+  if (route === "foods") return json({ foods: await loadFoods(store) });
+  if (route === "food-save" || route === "food-del") {
+    if (!user.owner) return json({ error: "Только тренер" }, 403);
+    let foods = await loadFoods(store);
+    if (route === "food-del") foods = foods.filter(f => f.key !== body.key);
+    else {
+      const r = cleanFood({ ...body.food, src: "вручную" });
+      if (r.error) return json(r, 400);
+      if (body.key && body.key !== r.food.key) foods = foods.filter(f => f.key !== body.key);
+      foods = upsertFoods(foods, [r.food], { force: true });
+    }
+    await store.setJSON("foods", foods);
+    return json({ foods });
+  }
+
   // Дневник клиента для тренера (только чтение).
   if (route === "client") {
     if (!user.owner) return json({ error: "Только тренер" }, 403);
@@ -136,12 +153,12 @@ async function handle(req) {
       content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: String(img.data) } });
     });
     if (images.length) {
-      content.push({ type: "text", text: "Посчитай еду на этих фото. Если на фото бутылка, банка или упаковка — считай весь её объём по этикетке, а не 100 мл или 100 г." });
+      content.push({ type: "text", text: "Посчитай еду на этих фото. Если видна этикетка с пищевой ценностью — бери цифры с неё. Если на фото бутылка, банка или упаковка — считай весь её объём по этикетке, а не 100 мл или 100 г. Одна и та же упаковка на нескольких фото (лицом, боком, этикеткой) — это одна штука." });
       if (note) content.push({ type: "text", text: "Подпись: " + note });
     } else {
       content.push({ type: "text", text: "Фото нет, еда описана словами. Посчитай по описанию: если вес или объём не назван — бери типичную порцию и назови допущение.\nОписание: " + note });
     }
-    const res = await askModel(content, user);
+    const res = await askModel(content, user, store);
     if (res.error) return json(res, 502);
     // День записи: время съёмки с телефона (до 14 дней назад), иначе сейчас.
     const now = Date.now();
@@ -165,7 +182,7 @@ async function handle(req) {
     const res = await askModel([{ type: "text", text:
       "Прошлый расчёт по фото (фото уже нет, есть только этот текст):\n" + e.text +
       (e.note ? "\nПодпись к фото была: " + e.note : "") +
-      "\n\nПоправка: " + note + "\nПересчитай." }], user);
+      "\n\nПоправка: " + note + "\nПересчитай. Цифры из поправки (КБЖУ, вес, число штук) главнее прошлого расчёта и твоих оценок; если продукт фирменный, а точных цифр нет ни в поправке, ни в частых продуктах — найди их в интернете." }], user, store);
     if (res.error) return json(res, 502);
     const fresh = (await store.get(histKey, { type: "json" })) || [];
     const f = fresh.find(h => h.at === body.at);
@@ -183,8 +200,10 @@ async function handle(req) {
 const MODELS = () => (Netlify.env.get("OPENROUTER_MODEL") || "anthropic/claude-sonnet-5.5")
   .split(",").map(s => s.trim()).filter(Boolean);
 const apiKey = () => Netlify.env.get("OPENROUTER_API_KEY") || "";
-// Веб-поиск OpenRouter платный отдельно: включается переменной OPENROUTER_SEARCH=1.
-const useSearch = () => Netlify.env.get("OPENROUTER_SEARCH") === "1";
+// Веб-поиск OpenRouter (инструмент openrouter:web_search, движок Exa ≈ $0,007 за поиск): модель ищет сама,
+// только когда нужно сверить фирменный продукт. Выключить — переменная OPENROUTER_SEARCH=0.
+const useSearch = () => Netlify.env.get("OPENROUTER_SEARCH") !== "0";
+const SEARCH_TOOL = { type: "openrouter:web_search", parameters: { engine: "exa", max_results: 5, max_total_results: 12 } };
 
 const MEASURE_SYSTEM = `Ты измеряешь кисть руки по фото. На фото кисть лежит на ровной поверхности, рядом эталон: банковская карта (8,56 × 5,40 см) или линейка/рулетка. Карта и кисть должны быть в одной плоскости; учти перспективу: если карта или кисть сняты под углом, поправь по форме карты (она прямоугольная).
 Измерь в сантиметрах с одной десятичной:
@@ -204,7 +223,7 @@ async function callModel(system, parts, maxTokens, temperature) {
   if (!key) return { error: "На сервере нет ключа OpenRouter (переменная OPENROUTER_API_KEY в Netlify)" };
   const models = MODELS();
   const search = useSearch() && maxTokens > 1000;
-  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const send = withSearch => fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -216,11 +235,14 @@ async function callModel(system, parts, maxTokens, temperature) {
       model: models[0],
       ...(models.length > 1 ? { models } : {}),
       messages: [{ role: "system", content: system }, { role: "user", content: parts }],
-      ...(search ? { plugins: [{ id: "web", max_results: 3 }] } : {}),
+      ...(withSearch ? { tools: [SEARCH_TOOL], max_tool_calls: 4 } : {}),
       max_tokens: maxTokens,
       temperature
     })
   });
+  let r = await send(search);
+  // Поиск не принят (400) — считаем без него, чтобы расчёт не сорвался.
+  if (search && r.status === 400) r = await send(false);
   const data = await r.json().catch(() => ({}));
   if (!r.ok || data.error) {
     const msg = (data.error && data.error.message) || ("Ошибка OpenRouter " + r.status);
@@ -237,17 +259,31 @@ async function callModel(system, parts, maxTokens, temperature) {
   return { text: raw };
 }
 
-async function askModel(content, user) {
+async function loadFoods(store) {
+  const f = await store.get("foods", { type: "json" });
+  return Array.isArray(f) ? f : [];
+}
+
+async function askModel(content, user, store) {
   const parts = content.map(c => c.type === "image"
     ? { type: "image_url", image_url: { url: "data:" + c.source.media_type + ";base64," + c.source.data } }
     : { type: "text", text: c.text });
-  const system = buildSystem({ name: user.name, owner: !!user.owner, hand: handOf(user), search: useSearch() });
-  const res = await callModel(system, parts, 4096, 0.4);
+  const foods = await loadFoods(store);
+  const system = buildSystem({ name: user.name, owner: !!user.owner, hand: handOf(user), search: useSearch(), foods });
+  const res = await callModel(system, parts, 4096, 0.3);
   if (res.error) return res;
   const raw = res.text;
   const m = raw.match(/#ИТОГ\s+ккал=(\d+)\s+б=(\d+)\s+ж=(\d+)\s+у=(\d+)/);
+  // Цифры с этикетки, из интернета или из поправки модель отдаёт строкой #ПРОДУКТ — запоминаем в частые продукты.
+  const learned = parseFoodTags(raw, user.name);
+  if (learned.length) {
+    try {
+      const fresh = await loadFoods(store);
+      await store.setJSON("foods", upsertFoods(fresh, learned));
+    } catch {}
+  }
   return {
-    text: raw.replace(/\n?#ИТОГ[^\n]*/g, "").trim(),
+    text: raw.replace(/\n?#(ИТОГ|ПРОДУКТ)[^\n]*/g, "").replace(/\n{3,}/g, "\n\n").trim(),
     totals: m ? { kcal: +m[1], p: +m[2], f: +m[3], c: +m[4] } : null
   };
 }

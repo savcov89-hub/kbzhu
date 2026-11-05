@@ -194,6 +194,12 @@ body.kb .sheet-foot,body.kb .sheet-body.nofoot{padding-bottom:10px}
 .cl-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .pill{padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg);font-size:14px;font-weight:600}
 .pill.danger{color:var(--danger)}
+.fgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px}
+.fgrid label,.fpack{display:block;font-size:13px;color:var(--muted)}
+.fgrid .tin,.fpack .tin{width:100%;margin-top:3px;padding:11px 8px;text-align:center}
+.fpack{margin-top:10px}.fpack .tin{text-align:left;padding:11px 12px}
+.fd .cl-top b{font-size:16px}
+.fd .fdm{font-size:14px;margin-top:4px;font-variant-numeric:tabular-nums}
 .pill.sure{background:var(--danger);border-color:var(--danger);color:#fff}
 .linkbox{word-break:break-all;font-size:14px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin:8px 0;user-select:all;-webkit-user-select:all}
 
@@ -309,6 +315,7 @@ body.sheet-open .toast{bottom:calc(var(--kb) + 96px)}
     <div class="sheet-body nofoot">
       <button class="li" id="mHand"><span class="em">📏</span><span class="lt"><b>Моя ладонь</b><small id="mHandSum"></small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
       <button class="li" id="mHelp"><span class="em">📖</span><span class="lt"><b>Как фоткать и мерить</b><small>Инструкция и исследования</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="li" id="mFoods"><span class="em">🥫</span><span class="lt"><b>Частые продукты</b><small id="mFoodsSum">Точные КБЖУ, с ними сверяется расчёт</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
       <div id="clientsBox" hidden>
         <h3>Клиенты</h3>
         <div class="muted">Впиши имя и нажми «Добавить» — откроется «Поделиться», отправь ссылку в Telegram или WhatsApp. У клиента своя история и свои замеры ладони. Свою ссылку клиентам не отправляй.</div>
@@ -389,6 +396,8 @@ body.sheet-open .toast{bottom:calc(var(--kb) + 96px)}
         <div class="acc-b" hidden><div class="acc-in">
           <p>Сфоткай этикетку так, чтобы были видны калории и объём или вес. Считается <b>вся упаковка</b>: бутылка 0,5 л — это 500 мл, а не 100 мл с этикетки.</p>
           <p>Съел или выпил часть — напиши: «половину», «выпил 200 мл».</p>
+          <p>Цифры с этикетки главнее всего. Одна упаковка, снятая с двух сторон, — это одна штука. Две штуки — напиши «2 шт».</p>
+          <p>Этикетки не видно — найду продукт в интернете. Цифры с этикеток запоминаю в «Частых продуктах» (меню), и в следующий раз хватит фото без этикетки.</p>
         </div></div>
       </div>
 
@@ -478,6 +487,36 @@ body.sheet-open .toast{bottom:calc(var(--kb) + 96px)}
       </div>
     </div>
     <div class="sheet-foot"><button class="btn" id="hSave">Сохранить</button></div>
+  </div>
+</div>
+
+<!-- Частые продукты -->
+<div class="sheet tall" id="sFoods" hidden role="dialog" aria-modal="true" aria-labelledby="sFoodsT">
+  <div class="sheet-bd"></div>
+  <div class="sheet-panel">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head"><h2 id="sFoodsT">Частые продукты</h2><button class="ib x" aria-label="Закрыть">✕</button></div>
+    <div class="sheet-body nofoot">
+      <div class="muted">Проверенные КБЖУ на 100 г. При каждом расчёте сначала смотрю этикетку на фото, потом этот список, потом ищу в интернете. Когда ты фоткаешь этикетку, продукт добавляется сюда сам.</div>
+      <div id="foodAddBox" hidden>
+        <div class="acc" style="margin-top:12px">
+          <button class="acc-h" id="foodAddH"><span class="em">➕</span>Добавить вручную<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+          <div class="acc-b" hidden><div class="acc-in">
+            <input id="fdName" class="tin" type="text" placeholder="Марка, название, вкус, жирность" autocomplete="off" style="width:100%">
+            <div class="muted" style="margin-top:10px">На 100 г, как на этикетке:</div>
+            <div class="fgrid">
+              <label>ккал<input id="fdK" class="tin" inputmode="decimal" autocomplete="off"></label>
+              <label>Б<input id="fdP" class="tin" inputmode="decimal" autocomplete="off"></label>
+              <label>Ж<input id="fdF" class="tin" inputmode="decimal" autocomplete="off"></label>
+              <label>У<input id="fdC" class="tin" inputmode="decimal" autocomplete="off"></label>
+            </div>
+            <label class="fpack">Вес упаковки, г (если есть)<input id="fdPack" class="tin" inputmode="decimal" autocomplete="off"></label>
+            <button class="btn" id="fdSave" style="margin-top:12px">Сохранить</button>
+          </div></div>
+        </div>
+      </div>
+      <div id="foodList"></div>
+    </div>
   </div>
 </div>
 
@@ -625,20 +664,29 @@ document.addEventListener("click", e => {
 // iPhone не ужимает страницу под клавиатуру: берём видимую область из visualViewport.
 // Строка ввода поднимается над клавиатурой, шторки занимают ровно видимую часть, поле ввода в шторке — по центру.
 const vv = window.visualViewport;
-let kbOpen = false;
+let kbOpen = false, lastKb = -1, touching = false;
 function nearBottom(){ return innerHeight + scrollY >= document.documentElement.scrollHeight - 90; }
+// Пока палец на экране, страницу сами не двигаем: иначе при прокрутке у низа её тянуло обратно вниз.
+addEventListener("touchstart", () => { touching = true; }, {passive: true});
+addEventListener("touchend", () => { touching = false; }, {passive: true});
+addEventListener("touchcancel", () => { touching = false; }, {passive: true});
+const typingNow = () => { const a = document.activeElement; return !!(a && a.matches && a.matches("input,textarea")); };
 function syncViewport(){
   const H = document.documentElement.clientHeight;
   const zoomed = vv && vv.scale > 1.05;
-  const ok = vv && !zoomed && vv.height > 120;
+  // Клавиатура бывает только когда фокус в поле ввода. Без этого резиновая прокрутка iPhone двигала visualViewport,
+  // это принималось за клавиатуру, и страницу дёргало к низу — запись «прилипала».
+  const ok = vv && !zoomed && vv.height > 120 && typingNow();
   const vh = ok ? vv.height : innerHeight, top = ok ? vv.offsetTop : 0;
   let kb = Math.max(0, Math.round(H - vh - top)); if (kb < 2) kb = 0;
+  const kbChanged = Math.abs(kb - lastKb) > 40; if (kbChanged || lastKb < 0) lastKb = kb;
   const wasBottom = nearBottom();
   R.setProperty("--vv-h", vh + "px"); R.setProperty("--vv-top", top + "px"); R.setProperty("--kb", kb + "px");
   const open = kb > 80 || (document.activeElement === $("note") && innerHeight < screen.height * 0.6);
   if (open !== kbOpen){ kbOpen = open; document.body.classList.toggle("kb", open); $("today").classList.toggle("compact", open); }
   padBottom();
-  if (wasBottom && !sheets.length) toBottom(false);
+  // К низу прижимаем только когда клавиатура открылась или закрылась, а не на каждую прокрутку.
+  if (kbChanged && wasBottom && !sheets.length && !touching) toBottom(false);
   const ae = document.activeElement;
   if (ae && ae.closest && ae.closest(".sheet") && ae.matches("input,textarea")) revealInSheet(ae);
 }
@@ -1132,6 +1180,7 @@ function updateMenu(){
   $("mHandSum").textContent = ME && ME.handSet ? "Длина и ширина: " + handSum(ME.hand) : "Не замерена — считаю по средней ладони";
 }
 $("mHand").onclick = () => openHand();
+$("mFoods").onclick = () => openFoods();
 $("mHelp").onclick = () => openSheet("sHelp");
 $("helpToHand").onclick = () => openHand();
 $("copyMy").onclick = () => copyText(linkFor(token));
@@ -1139,6 +1188,60 @@ async function copyText(text){
   try { await navigator.clipboard.writeText(text); toast("Скопировано"); }
   catch { toast("Не получилось скопировать — выдели ссылку пальцем"); }
 }
+
+// Частые продукты: смотрят все, правит тренер.
+let foods = [];
+async function openFoods(){
+  $("foodAddBox").hidden = !(ME && ME.owner);
+  renderFoods(true);
+  openSheet("sFoods");
+  try { foods = (await api("foods")).foods; renderFoods(); }
+  catch (e){ toast("Список не загрузился: " + e.message); }
+}
+const SRC = {"этикетка": "с этикетки", "вручную": "вписано вручную", "поправка": "из поправки", "интернет": "из интернета"};
+function renderFoods(loading){
+  if (loading && !foods.length){ $("foodList").replaceChildren(el("div", {class: "muted", style: "margin-top:14px", text: "Загружаю…"})); return; }
+  if (!foods.length){ $("foodList").replaceChildren(el("div", {class: "muted", style: "margin-top:14px", text: "Пока пусто. Сфотографируй этикетку продукта, который ешь часто, — он появится здесь."})); return; }
+  $("foodList").replaceChildren(...foods.map(f => {
+    const box = el("div", {class: "cl fd"},
+      el("div", {class: "cl-top"}, el("b", {text: f.name})),
+      el("div", {class: "fdm", text: f.kcal + " ккал · Б " + f1(f.p) + " Ж " + f1(f.f) + " У " + f1(f.c) + " на 100 г" + (f.pack ? " · упаковка " + f.pack + " г" : "")}),
+      el("div", {class: "muted", text: (SRC[f.src] || f.src) + (f.by ? " · " + f.by : "")}));
+    if (ME && ME.owner){
+      const rm = el("button", {class: "pill danger", text: "Удалить"});
+      let armed = false, t = null;
+      rm.onclick = async () => {
+        if (!armed){ armed = true; rm.textContent = "Точно удалить?"; rm.classList.add("sure"); t = setTimeout(() => { armed = false; rm.textContent = "Удалить"; rm.classList.remove("sure"); }, 3000); return; }
+        clearTimeout(t);
+        try { foods = (await api("food-del", {key: f.key})).foods; renderFoods(); toast("Удалил"); } catch (e){ toast(e.message); }
+      };
+      box.append(el("div", {class: "cl-acts"}, el("button", {class: "pill", text: "✏️ Исправить", onclick: () => editFood(f)}), rm));
+    }
+    return box;
+  }));
+}
+let foodEditKey = "";
+function editFood(f){
+  foodEditKey = f.key;
+  $("fdName").value = f.name; $("fdK").value = f.kcal; $("fdP").value = f1(f.p); $("fdF").value = f1(f.f); $("fdC").value = f1(f.c); $("fdPack").value = f.pack || "";
+  const acc = $("foodAddH").parentElement;
+  if (!acc.classList.contains("open")) toggleAcc(acc, true);
+  setTimeout(() => sheetScrollTo(acc), 300);
+}
+$("fdSave").onclick = async () => {
+  const food = {name: $("fdName").value, kcal: $("fdK").value, p: $("fdP").value, f: $("fdF").value, c: $("fdC").value, pack: $("fdPack").value};
+  if (!food.name.trim()){ $("fdName").focus(); toast("Впиши название"); return; }
+  const b = $("fdSave"); b.disabled = true;
+  try {
+    foods = (await api("food-save", {food, key: foodEditKey})).foods;
+    foodEditKey = "";
+    ["fdName", "fdK", "fdP", "fdF", "fdC", "fdPack"].forEach(id => $(id).value = "");
+    document.activeElement && document.activeElement.blur && document.activeElement.blur();
+    toggleAcc($("foodAddH").parentElement, false);
+    renderFoods(); toast("Сохранил — теперь считаю по этим цифрам");
+  } catch (e){ toast(e.message); }
+  finally { b.disabled = false; }
+};
 
 // Клиенты (только тренер)
 let people = [];
