@@ -74,4 +74,10 @@ export const onPreBuild = async ({ utils }) => {
     " think " + r.think + ", поиск " + r.searched + ", уверенность " + r.conf + "\n" + r.text.slice(0, 700)).join("\n")).join("\n\n");
   console.log(summary);
   utils.status.show({ title: "Тест моделей", summary: summary.slice(0, 4000), text: text.slice(0, 60000) });
+  // Сводка деплоя не видна снаружи, поэтому итог отдаём в сообщении об ошибке сборки (превью не нужно).
+  const items = r => (r.text || "").split("\n").filter(l => /^\d+\./.test(l.trim())).map(l => l.trim().slice(0, 70)).join(" / ");
+  const compact = all.map(t => "[" + t.id + "] " + t.results.map(r => r.error ? short(r.spec) + ": ERR " + r.error.slice(0, 80)
+    : short(r.spec) + ": " + r.kcal + "к $" + Number(r.cost || 0).toFixed(4) + " " + r.sec + "с out" + r.out + " th" + r.think +
+      (r.searched ? "" : " nosearch") + " ув:" + r.conf + " | " + items(r)).join(" || ")).join(" #### ");
+  utils.build.failBuild("MODELTEST " + compact.slice(0, 9000));
 };
