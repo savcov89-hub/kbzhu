@@ -156,7 +156,7 @@ async function handle(req) {
       content.push({ type: "text", text: "Посчитай еду на этих фото. Если видна этикетка с пищевой ценностью — бери цифры с неё. Если на фото бутылка, банка или упаковка — считай весь её объём по этикетке, а не 100 мл или 100 г. Одна и та же упаковка на нескольких фото (лицом, боком, этикеткой) — это одна штука." });
       if (note) content.push({ type: "text", text: "Подпись: " + note });
     } else {
-      content.push({ type: "text", text: "Фото нет, еда описана словами. Посчитай по описанию: если вес или объём не назван — бери типичную порцию и назови допущение.\nОписание: " + note });
+      content.push({ type: "text", text: "Фото нет, еда описана словами. Посчитай по описанию: если вес или объём не назван — бери типичную порцию и назови допущение. Фирменный продукт (названа марка) сначала ищи в частых продуктах, нет там — найди его КБЖУ в интернете, а не бери «типичные» цифры.\nОписание: " + note });
     }
     const res = await askModel(content, user, store);
     if (res.error) return json(res, 502);
@@ -172,6 +172,21 @@ async function handle(req) {
     fresh.sort((a, b) => b.at - a.at);
     await store.setJSON(histKey, fresh.slice(0, 500));
     return json({ entry });
+  }
+
+  // Перенос приёма на другой день или время (например, ел после полуночи — переносим на вчера).
+  if (route === "move") {
+    const now = Date.now();
+    let to = Math.round(Number(body.to));
+    if (!(to > now - 60 * 864e5 && to <= now + 3e5)) return json({ error: "Перенести можно только на последние 60 дней и не в будущее" }, 400);
+    const fresh = (await store.get(histKey, { type: "json" })) || [];
+    const e = fresh.find(h => h.at === body.at);
+    if (!e) return json({ error: "Расчёт не найден" }, 404);
+    while (fresh.some(h => h !== e && h.at === to)) to++;
+    e.at = to;
+    fresh.sort((a, b) => b.at - a.at);
+    await store.setJSON(histKey, fresh);
+    return json({ entry: e });
   }
 
   if (route === "fix") {
