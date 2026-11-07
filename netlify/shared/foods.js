@@ -1,8 +1,8 @@
 // Частые продукты: проверенные КБЖУ на 100 г (с этикетки, из интернета, из поправки или вписанные тренером).
-// Модель сверяется с этим списком при каждом расчёте, а новые цифры с этикеток сама дописывает строкой #ПРОДУКТ.
+// Модель сверяется с этим списком при каждом расчёте, а новые фирменные продукты сама дописывает строкой #ПРОДУКТ.
 
 export const MAX_FOODS = 300;
-const RANK = { "этикетка": 3, "вручную": 3, "поправка": 2, "интернет": 1 };
+const RANK = { "этикетка": 3, "вручную": 3, "поправка": 2, "интернет": 1, "оценка": 0.5 };
 
 export const foodKey = name => String(name || "").toLowerCase().replace(/ё/g, "е")
   .replace(/[«»"'“”„()]/g, " ").replace(/[^a-zа-я0-9%,.]+/gi, " ").replace(/\s+/g, " ").trim();
@@ -42,8 +42,8 @@ export function parseFoodTags(text, by) {
     const [name, kcal, p, f, c, pack, src] = m[1].split("|").map(s => s.trim());
     const s = String(src || "").toLowerCase();
     const r = cleanFood({ name, kcal, p, f, c, pack, by,
-      src: s.includes("этикет") ? "этикетка" : s.includes("поправ") ? "поправка" : s.includes("интернет") || s.includes("сайт") ? "интернет" : "" });
-    // Оценки «на глаз» не запоминаем: только этикетка, интернет или поправка человека.
+      src: s.includes("этикет") ? "этикетка" : s.includes("поправ") ? "поправка" : s.includes("интернет") || s.includes("сайт") ? "интернет" : s.includes("оцен") || s.includes("типич") ? "оценка" : "" });
+    // Оценку тоже запоминаем (чтобы один продукт считался одинаково), но её затрёт любая более точная цифра.
     if (r.food && r.food.src !== "вручную") out.push(r.food);
   }
   return out.slice(0, 10);
@@ -55,7 +55,9 @@ export function upsertFoods(list, add, { force = false } = {}) {
   for (const n of add) {
     const i = foods.findIndex(f => f.key === n.key);
     if (i < 0) { foods.unshift(n); continue; }
-    if (force || (RANK[n.src] || 0) >= (RANK[foods[i].src] || 0)) foods[i] = { ...foods[i], ...n };
+    // Новая оценка старую не меняет: иначе один и тот же продукт снова «плавал» бы.
+    const better = n.src === "оценка" ? false : (RANK[n.src] || 0) >= (RANK[foods[i].src] || 0);
+    if (force || better) foods[i] = { ...foods[i], ...n };
     else foods[i] = { ...foods[i], at: n.at };
   }
   return foods.sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, MAX_FOODS);

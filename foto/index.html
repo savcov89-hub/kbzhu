@@ -97,6 +97,10 @@ h3{font-size:17px;margin:22px 0 4px}
 .txt{white-space:pre-wrap;font-size:15px;line-height:1.5;background:var(--bg);border-radius:12px;padding:12px;margin-top:10px;overflow-wrap:anywhere}
 .cap{font-size:14px;color:var(--muted);margin-top:10px}
 .acts{display:flex;gap:8px;margin-top:10px}
+.act.dt{flex:0 0 auto;padding:11px 14px}
+.mv{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mv .chip{position:relative;overflow:hidden}
+.mv .chip input{position:absolute;inset:0;opacity:0;width:100%;height:100%;font-size:16px}
 .act{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 10px;border-radius:12px;border:1px solid var(--border);background:var(--card);font-size:15px;font-weight:600}
 .act:active{transform:scale(.98)}
 .act.danger{color:var(--danger)}
@@ -254,7 +258,7 @@ body.sheet-open .toast{bottom:calc(var(--kb) + 96px)}
 .toast.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
 .toast button{border:0;background:none;color:#4ade80;font-weight:750;padding:4px 2px;flex:none}
 @media (prefers-color-scheme:dark){.toast{background:#eef2ef;color:#17201a}.toast button{color:#15803d}}
-@media (max-width:360px){body{padding-left:12px;padding-right:12px}.t-k{font-size:28px}.mc{padding:3px 8px;font-size:13px}.row{gap:6px}.row .t{font-size:14px}.row .kc small{display:none}.ib{width:36px;height:36px}.chip{font-size:13px}}
+@media (max-width:360px){body{padding-left:12px;padding-right:12px}.t-k{font-size:28px}.mc{padding:3px 8px;font-size:13px}.row{gap:6px}.row .t{font-size:14px}.row .kc small{display:none}.ib{width:36px;height:36px}.chip{font-size:13px}.act{font-size:14px;padding:11px 6px;gap:4px}.act.dt{padding:11px 10px}.act.danger{flex:0 0 auto;padding:11px 12px}}
 @media (max-width:340px){.today.compact .macros{display:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
@@ -440,6 +444,8 @@ body.sheet-open .toast{bottom:calc(var(--kb) + 96px)}
           </ul>
           <p><b>Подстрой под себя.</b> 3–5 раз взвесь еду на кухонных весах после расчёта. Если приложение стабильно ошибается в одну сторону — раздели «весы» на «приложение», возьми среднее и впиши в «Моя ладонь → Поправка по весам».</p>
           <p>Ошибся один раз — открой запись и нажми «✏️ Исправить»: «на весах 60 г».</p>
+          <p>Записалось не на тот день (ел после полуночи) — открой запись и нажми 📅 или в «✏️ Исправить» напиши «вчера» или «вчера в 23:40».</p>
+          <p>Фирменные продукты запоминаются: раз посчитал творожок — дальше он считается так же. Пришли фото этикетки или поправь цифры на 100 г — и запомнятся точные.</p>
         </div></div>
       </div>
 
@@ -952,6 +958,7 @@ function entry(h, opt = {}){
   inner.append(el("div", {class: "txt", text: h.text + (h.fixes ? "\n\nПоправки: " + h.fixes.join("; ") : "")}));
   if (!opt.readOnly) inner.append(el("div", {class: "acts"},
     el("button", {class: "act", text: "✏️ Исправить", onclick: () => startFix(h)}),
+    el("button", {class: "act dt", "aria-label": "Перенести на другой день", text: "📅", onclick: () => toggleMove(h, inner)}),
     el("button", {class: "act danger", text: "Удалить", onclick: () => removeEntry(h)})));
   body.append(inner);
   const toggle = () => {
@@ -1170,6 +1177,67 @@ function toDraft(j){
   $("note").focus();
 }
 
+// ---------- перенос на другой день ----------
+const dayShift = (n, from) => { const d = new Date(); d.setDate(d.getDate() - n); const f = new Date(from); d.setHours(f.getHours(), f.getMinutes(), f.getSeconds(), 0); return d.getTime(); };
+const whenText = ts => dayTitle(ts).toLowerCase() + ", " + new Date(ts).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"});
+function toggleMove(h, inner){
+  const old = inner.querySelector(".mv");
+  if (old){ old.remove(); return; }
+  const cur = new Date(h.at).toDateString();
+  const chips = [["Сегодня", 0], ["Вчера", 1], ["Позавчера", 2]].map(([t, n]) => {
+    const to = dayShift(n, h.at);
+    return el("button", {class: "chip" + (new Date(to).toDateString() === cur ? " on" : ""), text: t, onclick: () => moveEntry(h, to)});
+  });
+  const pad = n => String(n).padStart(2, "0"), d = new Date(h.at);
+  const inp = el("input", {type: "datetime-local", "aria-label": "Другая дата и время",
+    value: d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes()),
+    max: new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 16)});
+  inp.onchange = () => { const to = new Date(inp.value).getTime(); if (to) moveEntry(h, to); };
+  const box = el("div", {class: "mv"}, ...chips, el("label", {class: "chip"}, "Дата и время…", inp));
+  inner.querySelector(".acts").after(box);
+  scrollIntoViewIfNeeded(inner.closest(".meal"));
+}
+async function moveEntry(h, to, quiet){
+  if (Math.abs(to - h.at) < 1000){ renderHistory(); return h; }
+  if (to > Date.now() + 6e4){ toast("В будущее перенести нельзя"); return null; }
+  const was = h.at;
+  try {
+    const r = await api("move", {at: was, to});
+    hist = hist.filter(x => x.at !== was && x.at !== r.entry.at).concat(r.entry).sort((a, b) => b.at - a.at);
+    if (openSet.delete(was)) openSet.add(r.entry.at);
+    flashAt = r.entry.at; renderHistory();
+    if (!quiet) toast("Перенёс на " + whenText(r.entry.at), {action: "Вернуть", onAction: () => moveEntry(r.entry, was, true)});
+    return r.entry;
+  } catch (e){ toast("Не перенеслось: " + e.message); return null; }
+}
+// «Исправить» понимает день и время: «вчера», «позавчера», «6 ноября», «06.11», «в 23:40».
+const MONTHS = ["январ", "феврал", "март", "апрел", "ма[яй]", "июн", "июл", "август", "сентябр", "октябр", "ноябр", "декабр"];
+function parseWhen(note, at){
+  let s = " " + note.toLowerCase().replace(/ё/g, "е") + " ", day = null, time = null, m;
+  const cut = re => s = s.replace(re, " ");
+  if ((m = s.match(/[^а-я](позавчера|вчера|сегодня)(?=[^а-я])/))){ day = dayShift({"позавчера": 2, "вчера": 1, "сегодня": 0}[m[1]], at); cut(m[0]); }
+  else if ((m = s.match(new RegExp("[^\\d](\\d{1,2})\\s+(" + MONTHS.join("|") + ")[а-я]*")))){
+    const mon = MONTHS.findIndex(x => new RegExp("^" + x).test(m[2])), d = new Date(at);
+    d.setMonth(mon, +m[1]); d.setFullYear(new Date().getFullYear()); if (d > new Date()) d.setFullYear(d.getFullYear() - 1);
+    if (d.getDate() === +m[1]){ day = d.getTime(); cut(m[0]); }
+  } else if ((m = s.match(/[^\d.,](\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?(?!\s*(?:г|кг|мл|л|%|ккал|шт|ч|раз)[^а-я])(?=[^\d.,])/)) && +m[1] >= 1 && +m[1] <= 31 && +m[2] >= 1 && +m[2] <= 12){
+    const d = new Date(at); d.setFullYear(m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : new Date().getFullYear(), +m[2] - 1, +m[1]);
+    if (!m[3] && d > new Date()) d.setFullYear(d.getFullYear() - 1);
+    day = d.getTime(); cut(m[0]);
+  }
+  if ((m = s.match(/[^\d.,]([01]?\d|2[0-3]):([0-5]\d)(?=[^\d])/)) || (m = s.match(/[^а-я]в\s+([01]?\d|2[0-3])[.:]([0-5]\d)(?=[^\d])/))){ time = [+m[1], +m[2]]; cut(m[0]); }
+  else if ((m = s.match(/[^а-я]в\s+(\d{1,2})\s+(ночи|утра|дня|вечера)(?=[^а-я])/)) && +m[1] <= 12){
+    let hh = +m[1]; if ((m[2] === "вечера" || m[2] === "дня") && hh < 12) hh += 12; if (m[2] === "ночи" && hh === 12) hh = 0;
+    time = [hh, 0]; cut(m[0]);
+  }
+  if (day === null && time === null) return null;
+  const d = new Date(day ?? at);
+  if (time) d.setHours(time[0], time[1], 0, 0);
+  const rest = s.replace(/[^а-яa-z0-9]+/g, " ").split(" ").filter(w => w && !FILLER.has(w)).join(" ");
+  return {to: d.getTime(), onlyDate: !rest};
+}
+const FILLER = new Set("перенеси перенести перенес переложи переместить перемести сдвинь сдвинуть поставь поставить запиши записать запиши это эту его ее было был была были ел ела съел съела на за в во к день дату дата даты время числа число числом пожалуйста плз вечером ночью утром днем днём поздно после полуночи ночи утра вечера дня он оно она ещё еще туда надо нужно сделай а и не прием приём еду еда это всё все".split(" "));
+
 // ---------- «Исправить»: как «ответить» в мессенджере ----------
 let fixing = null, draft = "";
 function startFix(h){
@@ -1190,15 +1258,23 @@ $("replyX").onclick = e => { e.preventDefault(); stopFix(); };
 async function sendFix(){
   const h = fixing, note = $("note").value.trim();
   if (!h || !note) return;
+  const when = parseWhen(note, h.at);
+  if (when && when.onlyDate){
+    stopVoice(); $("note").blur(); stopFix();
+    if (!(await moveEntry(h, when.to))){ startFix(h); $("note").value = note; autosize(); refreshDock(); }
+    return;
+  }
   $("send").disabled = true; busyAt = h.at; renderHistory();
   stopVoice(); $("note").blur(); stopFix(); toast("Пересчитываю…", {ms: 20000});
+  let cur = h;
   try {
-    const r = await api("fix", {at: h.at, note});
-    hist = hist.map(x => x.at === h.at ? r.entry : x);
-    busyAt = null; openSet.add(h.at); flashAt = h.at; renderHistory(); toast("Пересчитал");
+    if (when){ cur = await moveEntry(h, when.to, true); if (!cur) throw new Error("не удалось перенести дату"); busyAt = cur.at; renderHistory(); }
+    const r = await api("fix", {at: cur.at, note});
+    hist = hist.map(x => x.at === cur.at ? r.entry : x);
+    busyAt = null; openSet.add(cur.at); flashAt = cur.at; renderHistory(); toast(when ? "Перенёс на " + whenText(cur.at) + " и пересчитал" : "Пересчитал");
   } catch (e){
     busyAt = null; renderHistory();
-    startFix(h); $("note").value = note; autosize(); refreshDock();
+    startFix(hist.find(x => x.at === cur.at) || h); $("note").value = note; autosize(); refreshDock();
     toast("Не пересчиталось: " + e.message);
   }
 }
@@ -1227,7 +1303,7 @@ async function openFoods(){
   try { foods = (await api("foods")).foods; renderFoods(); }
   catch (e){ toast("Список не загрузился: " + e.message); }
 }
-const SRC = {"этикетка": "с этикетки", "вручную": "вписано вручную", "поправка": "из поправки", "интернет": "из интернета"};
+const SRC = {"этикетка": "с этикетки", "вручную": "вписано вручную", "поправка": "из поправки", "интернет": "из интернета", "оценка": "примерная оценка — поправь по этикетке"};
 function renderFoods(loading){
   if (loading && !foods.length){ $("foodList").replaceChildren(el("div", {class: "muted", style: "margin-top:14px", text: "Загружаю…"})); return; }
   if (!foods.length){ $("foodList").replaceChildren(el("div", {class: "muted", style: "margin-top:14px", text: "Пока пусто. Сфотографируй этикетку продукта, который ешь часто, — он появится здесь."})); return; }
