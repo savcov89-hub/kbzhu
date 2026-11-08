@@ -96,8 +96,7 @@ h3{font-size:17px;margin:22px 0 4px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .txt{white-space:pre-wrap;font-size:15px;line-height:1.5;background:var(--bg);border-radius:12px;padding:12px;margin-top:10px;overflow-wrap:anywhere}
 .cap{font-size:14px;color:var(--muted);margin-top:10px}
-.acts{display:flex;gap:8px;margin-top:10px}
-.act.dt{flex:0 0 auto;padding:11px 14px}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .mv{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .mv .chip{position:relative;overflow:hidden}
 .mv .chip input{position:absolute;inset:0;opacity:0;width:100%;height:100%;font-size:16px}
@@ -258,7 +257,7 @@ body.sheet-open .toast{bottom:calc(var(--kb) + 96px)}
 .toast.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
 .toast button{border:0;background:none;color:#4ade80;font-weight:750;padding:4px 2px;flex:none}
 @media (prefers-color-scheme:dark){.toast{background:#eef2ef;color:#17201a}.toast button{color:#15803d}}
-@media (max-width:360px){body{padding-left:12px;padding-right:12px}.t-k{font-size:28px}.mc{padding:3px 8px;font-size:13px}.row{gap:6px}.row .t{font-size:14px}.row .kc small{display:none}.ib{width:36px;height:36px}.chip{font-size:13px}.act{font-size:14px;padding:11px 6px;gap:4px}.act.dt{padding:11px 10px}.act.danger{flex:0 0 auto;padding:11px 12px}}
+@media (max-width:360px){body{padding-left:12px;padding-right:12px}.t-k{font-size:28px}.mc{padding:3px 8px;font-size:13px}.row{gap:6px}.row .t{font-size:14px}.row .kc small{display:none}.ib{width:36px;height:36px}.chip{font-size:13px}.act{font-size:14px;padding:11px 6px;gap:4px}}
 @media (max-width:340px){.today.compact .macros{display:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
@@ -444,6 +443,7 @@ body.sheet-open .toast{bottom:calc(var(--kb) + 96px)}
           </ul>
           <p><b>Подстрой под себя.</b> 3–5 раз взвесь еду на кухонных весах после расчёта. Если приложение стабильно ошибается в одну сторону — раздели «весы» на «приложение», возьми среднее и впиши в «Моя ладонь → Поправка по весам».</p>
           <p>Ошибся один раз — открой запись и нажми «✏️ Исправить»: «на весах 60 г».</p>
+          <p>Съел то же самое ещё раз (второй творожок, ещё конфету) — открой прошлую запись и нажми «🔁 Ещё раз»: запишется на сейчас, без фото.</p>
           <p>Записалось не на тот день (ел после полуночи) — открой запись и нажми 📅 или в «✏️ Исправить» напиши «вчера» или «вчера в 23:40».</p>
           <p>Фирменные продукты запоминаются: раз посчитал творожок — дальше он считается так же. Пришли фото этикетки или поправь цифры на 100 г — и запомнятся точные.</p>
         </div></div>
@@ -957,8 +957,9 @@ function entry(h, opt = {}){
   if (h.note) inner.append(el("div", {class: "cap", text: (h.n ? "Подпись: " : "Записано текстом: ") + h.note}));
   inner.append(el("div", {class: "txt", text: h.text + (h.fixes ? "\n\nПоправки: " + h.fixes.join("; ") : "")}));
   if (!opt.readOnly) inner.append(el("div", {class: "acts"},
+    el("button", {class: "act", text: "🔁 Ещё раз", onclick: () => repeatEntry(h)}),
     el("button", {class: "act", text: "✏️ Исправить", onclick: () => startFix(h)}),
-    el("button", {class: "act dt", "aria-label": "Перенести на другой день", text: "📅", onclick: () => toggleMove(h, inner)}),
+    el("button", {class: "act", text: "📅 Дата", onclick: () => toggleMove(h, inner)}),
     el("button", {class: "act danger", text: "Удалить", onclick: () => removeEntry(h)})));
   body.append(inner);
   const toggle = () => {
@@ -1175,6 +1176,20 @@ function toDraft(j){
   pending.push(...j.files.map((f, i) => ({file: f, url: j.urls[i]})));
   $("note").value = j.note; autosize(); dayChoice = j.day; renderDays(); refreshDock(); renderJobs();
   $("note").focus();
+}
+
+// ---------- «Ещё раз»: та же еда на текущее время, без фото и нового расчёта ----------
+async function repeatEntry(h){
+  if (navigator.vibrate) navigator.vibrate(8);
+  try {
+    const r = await api("repeat", {at: h.at});
+    addEntry(r.entry); toBottom();
+    const nm = mealName(h);
+    toast("Записал ещё раз: " + (nm.length > 26 ? nm.slice(0, 24).trim() + "…" : nm) + (h.totals ? " · " + nf(h.totals.kcal) + " ккал" : ""), {
+      action: "Отменить",
+      onAction: () => { hist = hist.filter(x => x.at !== r.entry.at); renderHistory(); api("delete", {at: r.entry.at}).catch(e => toast("Не отменилось: " + e.message)); }
+    });
+  } catch (e){ toast("Не записалось: " + e.message); }
 }
 
 // ---------- перенос на другой день ----------

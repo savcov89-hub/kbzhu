@@ -144,7 +144,7 @@ async function handle(req) {
     const note = String(body.note || "").trim().slice(0, 500);
     if (!images.length && !note) return json({ error: "Нет фото и нет текста" }, 400);
     const today = new Date().toDateString();
-    if (history.filter(h => new Date(h.created || h.at).toDateString() === today).length >= DAILY_LIMIT)
+    if (history.filter(h => !h.repeatOf && new Date(h.created || h.at).toDateString() === today).length >= DAILY_LIMIT)
       return json({ error: "Лимит расчётов на сегодня исчерпан" }, 429);
 
     const content = [];
@@ -168,6 +168,22 @@ async function handle(req) {
     const fresh = (await store.get(histKey, { type: "json" })) || [];
     while (fresh.some(h => h.at === at)) at++;
     const entry = { at, created: now, n: images.length, ...(note ? { note } : {}), ...res };
+    fresh.unshift(entry);
+    fresh.sort((a, b) => b.at - a.at);
+    await store.setJSON(histKey, fresh.slice(0, 500));
+    return json({ entry });
+  }
+
+  // «Повторить»: та же еда ещё раз, на текущее время, без нового расчёта.
+  if (route === "repeat") {
+    const fresh = (await store.get(histKey, { type: "json" })) || [];
+    const e = fresh.find(h => h.at === body.at);
+    if (!e) return json({ error: "Расчёт не найден" }, 404);
+    const now = Date.now();
+    let at = now;
+    while (fresh.some(h => h.at === at)) at++;
+    const { fixes, ...rest } = e;
+    const entry = { ...rest, ...(fixes ? { fixes } : {}), at, created: now, repeatOf: e.repeatOf || e.at };
     fresh.unshift(entry);
     fresh.sort((a, b) => b.at - a.at);
     await store.setJSON(histKey, fresh.slice(0, 500));
