@@ -128,6 +128,37 @@ async function handle(req) {
     return json({ name: c.name, hand: c.hand || null, history: h.slice(0, 200) });
   }
 
+  // Сравнение моделей (только тренер): одно фото считают несколько моделей, ответ не сохраняется в дневник.
+  if (route === "compare") {
+    if (!user.owner) return json({ error: "Только тренер" }, 403);
+    const images = Array.isArray(body.images) ? body.images.slice(0, 6) : [];
+    const note = String(body.note || "").trim().slice(0, 500);
+    const models = (Array.isArray(body.models) ? body.models : []).map(String)
+      .filter(m => /^[\w.-]+\/[\w.:-]+(@(minimal|low|medium|high|xhigh))?$/.test(m)).slice(0, 6);
+    if (!images.length || !models.length) return json({ error: "Нужны фото и модели" }, 400);
+    const parts = [];
+    images.forEach((img, i) => {
+      parts.push({ type: "text", text: "Фото " + (i + 1) });
+      parts.push({ type: "image_url", image_url: { url: "data:image/jpeg;base64," + String(img) } });
+    });
+    parts.push({ type: "text", text: "Посчитай еду на этих фото. Если видна этикетка с пищевой ценностью — бери цифры с неё. Если на фото бутылка, банка или упаковка — считай весь её объём по этикетке, а не 100 мл или 100 г. Одна и та же упаковка на нескольких фото (лицом, боком, этикеткой) — это одна штука." });
+    if (note) parts.push({ type: "text", text: "Подпись: " + note });
+    const system = buildSystem({ name: user.name, owner: true, hand: handOf(user), search: useSearch(), foods: await loadFoods(store) });
+    // «модель@high» — с уровнем рассуждения (reasoning effort): модель сначала думает, думание оплачивается как ответ.
+    const results = await Promise.all(models.map(async model => {
+      const [id, effort] = model.split("@");
+      const t0 = Date.now();
+      const r = await callModel(system, parts, effort ? 16000 : 4096, effort ? 1 : 0.3, { model: id, effort });
+      const out = { model, ms: Date.now() - t0 };
+      if (r.error) return { ...out, error: r.error };
+      const m = r.text.match(/#ИТОГ\s+ккал=(\d+)\s+б=(\d+)\s+ж=(\d+)\s+у=(\d+)/);
+      return { ...out, text: r.text.replace(/\n?#(ИТОГ|ПРОДУКТ)[^\n]*/g, "").trim(),
+        totals: m ? { kcal: +m[1], p: +m[2], f: +m[3], c: +m[4] } : null,
+        usage: r.usage || null };
+    }));
+    return json({ results });
+  }
+
   const histKey = "history/" + token;
   const history = (await store.get(histKey, { type: "json" })) || [];
 
@@ -249,10 +280,10 @@ Lt — длина ногтевой фаланги большого пальца:
 Ответь строго одним JSON без пояснений и без markdown:
 {"ok":true,"Lh":17.0,"Wp":8.4,"Lp":9.5,"Lm":7.5,"Wi":1.8,"Wt":2.0,"Lt":3.5,"note":"что мешало точности, коротко по-русски"}`;
 
-async function callModel(system, parts, maxTokens, temperature) {
+async function callModel(system, parts, maxTokens, temperature, opts = {}) {
   const key = apiKey();
   if (!key) return { error: "На сервере нет ключа OpenRouter (переменная OPENROUTER_API_KEY в Netlify)" };
-  const models = MODELS();
+  const models = opts.model ? [opts.model] : MODELS();
   const search = useSearch() && maxTokens > 1000;
   const send = withSearch => fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -268,7 +299,9 @@ async function callModel(system, parts, maxTokens, temperature) {
       messages: [{ role: "system", content: system }, { role: "user", content: parts }],
       ...(withSearch ? { tools: [SEARCH_TOOL], max_tool_calls: 4 } : {}),
       max_tokens: maxTokens,
-      temperature
+      temperature,
+      ...(opts.effort ? { reasoning: { effort: opts.effort, exclude: true } } : {}),
+      usage: { include: true }
     })
   });
   let r = await send(search);
@@ -287,7 +320,9 @@ async function callModel(system, parts, maxTokens, temperature) {
   if (Array.isArray(raw)) raw = raw.map(p => p.text || "").join("");
   raw = String(raw || "").trim();
   if (!raw) return { error: "Пустой ответ модели, попробуй ещё раз" };
-  return { text: raw };
+  const u = data.usage || {};
+  return { text: raw, usage: { cost: u.cost, in: u.prompt_tokens, out: u.completion_tokens,
+    think: u.completion_tokens_details && u.completion_tokens_details.reasoning_tokens, model: data.model } };
 }
 
 async function loadFoods(store) {
